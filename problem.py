@@ -1,37 +1,51 @@
-import numpy as np
-from util import Graph
+from experiment import Graph
 from itertools import combinations
-from util import euclidean_dist_2D
-import math
+import numpy as np
 
-class SpinLattice(Graph):
+class MaxCutProblem(Graph):
 
-    def __init__(self, lattice_X, lattice_Y, lattice_spacing):
-        super().__init__()
-        self.lattice_spacing = lattice_spacing
-        self.num_rows = lattice_X / self.lattice_spacing
-        self.num_cols = lattice_Y / self.lattice_spacing
-        for r in range(self.num_rows):
-            for c in range(self.num_cols):
-                self.add_vertex((r, c))
+    def __init__(self, setup):
+        super().__init__(setup.get_vertex_dict())
+        self.partition = np.random.randint(2, size=self.num_vertices)
+        self.cur_obj = self.get_objective()
+        self.best_obj = self.cur_obj
+        self.change = self.get_objective_change_per_switch()
+    
+    def get_objective(self):
+        obj = 0
+        for v1, v2 in combinations(self.get_vertices(), 2):
+            if self.partition[v1] != self.partition[v2]:
+                obj += self.get_edge(v1, v2)
+        return obj
 
-    def turn_on_interactions(self, interaction_fn):
-        spins = self.get_vertices()
-        for spin1, spin2 in combinations(spins, 2):
-            dist = euclidean_dist_2D(spin1, spin2, self.lattice_spacing)
-            
-            # do not create edges corresponding to interactions close to 0
-            strength = math.floor(interaction_fn(dist))
-            if strength > 0:
-                self.add_edge(spin1, spin2, strength)
+    def get_objective_change_per_switch(self):
+        change = np.zeros(self.num_vertices)
+        for v in self.get_vertices():
+            for n in self.get_neighbors(v):
+                w = self.get_edge(v, n)
+                if self.partition[v] == self.partition[n]:
+                    change[v] += w
+                else:
+                    change[v] -= w
+        return change
 
-def inverse_fn(alpha):
-    def fn(dist):
-        return np.power(dist, -1.0 * alpha)
-    return fn
+    def switch(self, v):
+        self.partition[v] = 1 - self.partition[v]
+        self.cur_obj += self.change[v]
+        self.change[v] = - self.change[v]
+        for n in self.get_neighbors(v):
+            w = self.get_edge(v, n)
+            if self.partition[v] == self.partition[n]:
+                self.change[n] += 2 * w
+            else:
+                self.change[n] -= 2 * w
+        self.best_obj = max(self.cur_obj, self.best_obj)
 
-def logistic_decay_fn(amplitude, radius):
-    def fn(dist):
-        # shifts logistic decay function by radius
-        return amplitude / (1.0 + np.exp(dist - radius))
-    return fn
+
+
+
+
+        
+
+
+        

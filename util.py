@@ -25,15 +25,17 @@ class Vertex(object):
 
 class Graph(object):
 
-    def __init__(self):
-        self.vert_dict = {}
-        self.num_vertices = 0
+    def __init__(self, vert_dict=None):
+        if vert_dict == None:
+            vert_dict = {}
+        self.vert_dict = vert_dict
+        self.num_vertices = len(self.vert_dict)
 
     def __iter__(self):
         return iter(self.vert_dict.values())
 
     def add_vertex(self, node):
-        self.num_vertices = self.num_vertices + 1
+        self.num_vertices += 1
         new_vertex = Vertex(node)
         self.vert_dict[node] = new_vertex
         return new_vertex
@@ -44,23 +46,32 @@ class Graph(object):
         if to not in self.vert_dict:
             self.add_vertex(to)
 
-        self.vert_dict[frm].add_neighbor(self.vert_dict[to], weight)
-        self.vert_dict[to].add_neighbor(self.vert_dict[frm], weight)
+        self.vert_dict[frm].add_neighbor(to, weight)
+        self.vert_dict[to].add_neighbor(frm, weight)
 
     def get_vertices(self):
         return self.vert_dict.keys()
     
-    def get_vertex_obj(self, n):
-        if n in self.vert_dict:
-            return self.vert_dict[n]
+    def get_vertex_obj(self, v):
+        if v in self.vert_dict:
+            return self.vert_dict[v]
         else:
             return None
     
-    # def get_edge(self, frm, to):
-    #     if frm in self.vert_dict and to in self.vert_dict:
-    #         return (self.vert_dict[frm]).adjacent[self.vert_dict[to]]
-    #     else:
-    #         return 0
+    def get_vertex_dict(self):
+        return self.vert_dict
+    
+    def get_edge(self, frm, to):
+        if frm in self.vert_dict and to in self.vert_dict:
+            return self.vert_dict[frm].get_weight(to)
+        else:
+            return None
+
+    def get_neighbors(self, v):
+        if v in self.vert_dict:
+            return self.vert_dict[v].get_connections()
+        else:
+            return None
 
 def euclidean_dist_2D(loc1, loc2, spacing):
     coord1 = spacing * np.array(loc1)
