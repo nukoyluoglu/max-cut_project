@@ -11,7 +11,7 @@ class SimulatedAnnealing(MaxCutAlgorithm):
     def solve(self, problem):
         for temp in range(INITIAL_TEMPERATURE, 0, -2e-6):
             v = np.random.choice(problem.get_vertices())
-            delta = problem.get_change(v)
+            delta = problem.get_switch_change(v)
             if np.random.uniform() <= np.exp(delta / temp):
                 problem.switch(v)
         return problem.partition, problem.cur_obj, problem.best_obj

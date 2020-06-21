@@ -1,9 +1,9 @@
-from util import Graph, euclidean_dist_2D
+import util
 import numpy as np
 from itertools import combinations
 import math
 
-class SpinLattice(Graph):
+class SpinLattice(util.Graph):
 
     def __init__(self, lattice_X, lattice_Y, lattice_spacing):
         super().__init__()
@@ -17,7 +17,7 @@ class SpinLattice(Graph):
     def turn_on_interactions(self, interaction_fn):
         spins = self.get_vertices()
         for spin1, spin2 in combinations(spins, 2):
-            dist = euclidean_dist_2D(spin1, spin2, self.lattice_spacing)
+            dist = util.euclidean_dist_2D(spin1, spin2, self.lattice_spacing)
             
             # do not create edges corresponding to interactions close to 0
             strength = math.floor(interaction_fn(dist))

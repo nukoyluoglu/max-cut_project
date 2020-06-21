@@ -1,15 +1,15 @@
-from experiment import Graph
+import util
 from itertools import combinations
 import numpy as np
 
-class MaxCutProblem(Graph):
+class MaxCutProblem(util.Graph):
 
     def __init__(self, setup):
         super().__init__(setup.get_vertex_dict())
         self.partition = np.random.randint(2, size=self.num_vertices)
         self.cur_obj = self.get_objective()
         self.best_obj = self.cur_obj
-        self.change = self.get_objective_change_per_switch()
+        self.switch_change = self.get_objective_change_per_switch()
     
     def get_objective(self):
         obj = 0
@@ -31,15 +31,18 @@ class MaxCutProblem(Graph):
 
     def switch(self, v):
         self.partition[v] = 1 - self.partition[v]
-        self.cur_obj += self.change[v]
-        self.change[v] = - self.change[v]
+        self.cur_obj += self.switch_change[v]
+        self.switch_change[v] = - self.switch_change[v]
         for n in self.get_neighbors(v):
             w = self.get_edge(v, n)
             if self.partition[v] == self.partition[n]:
-                self.change[n] += 2 * w
+                self.switch_change[n] += 2 * w
             else:
-                self.change[n] -= 2 * w
+                self.switch_change[n] -= 2 * w
         self.best_obj = max(self.cur_obj, self.best_obj)
+    
+    def get_switch_change(self, v):
+        return self.switch_change[v]
 
 
 
