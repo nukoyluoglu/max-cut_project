@@ -1,6 +1,5 @@
-from util import euclidean_dist_2D
+from util import Graph, euclidean_dist_2D
 import numpy as np
-from util import Graph
 from itertools import combinations
 import math
 

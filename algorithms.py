@@ -1,14 +1,28 @@
+import numpy as np
+
+INITIAL_TEMPERATURE = 10000
+
 class MaxCutAlgorithm:
 
-    def solve(self, graph): raise NotImplementedError("Override me")
+    def solve(self, problem): raise NotImplementedError("Override me")
 
 class SimulatedAnnealing(MaxCutAlgorithm):
 
-    def solve(self, graph):
-        print("to implement")
+    def solve(self, problem):
+        for temp in range(INITIAL_TEMPERATURE, 0, -2e-6):
+            v = np.random.choice(problem.get_vertices())
+            delta = problem.get_change(v)
+            if np.random.uniform() <= np.exp(delta / temp):
+                problem.switch(v)
+        return problem.partition, problem.cur_obj, problem.best_obj
 
 class SemiDefinite(MaxCutAlgorithm):
 
-    def solve(self, graph):
+    def solve(self, problem):
+        print("to implement")
+
+class Greedy(MaxCutAlgorithm):
+
+    def solve(self, problem):
         print("to implement")
 

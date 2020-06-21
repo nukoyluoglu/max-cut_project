@@ -11,12 +11,13 @@ INTERACTION_AMPLITUDE = 50
 
 def runtime(algorithm, radius):
     SETUP_CODE = '''
-maxcut_problem = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING)
+setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING)
 interaction_fn = experiment.logistic_decay_fn(INTERACTION_AMPLITUDE, radius)
-maxcut_problem.turn_on_interactions(interaction_fn)'''
+setup.turn_on_interactions(interaction_fn)
+prob = problem.MaxCutProblem(setup)'''
 
     TEST_CODE = '''
-algorithm.solve(maxcut_problem)'''
+algorithm.solve(prob)'''
     
     times = timeit.repeat(setup=SETUP_CODE, stmt=TEST_CODE, repeat=5)
     return np.mean(times)
