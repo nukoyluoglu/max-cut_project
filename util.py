@@ -1,6 +1,7 @@
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
+from plotly import graph_objects as go
 
 class Vertex(object):
 
@@ -45,12 +46,11 @@ class Graph(object):
             self.add_vertex(frm)
         if to not in self.vert_dict:
             self.add_vertex(to)
-
         self.vert_dict[frm].add_neighbor(to, weight)
         self.vert_dict[to].add_neighbor(frm, weight)
 
     def get_vertices(self):
-        return self.vert_dict.keys()
+        return list(self.vert_dict.keys())
     
     def get_vertex_obj(self, v):
         if v in self.vert_dict:
@@ -73,15 +73,18 @@ class Graph(object):
         else:
             return None
 
+    def get_num_vertices(self):
+        return self.num_vertices
+
 def euclidean_dist_2D(loc1, loc2, spacing):
     coord1 = spacing * np.array(loc1)
     coord2 = spacing * np.array(loc2)
     return np.linalg.norm(coord1 - coord2)
 
-def plot_interaction(interaction_fn, radius):
+def plot_interaction(interaction_fn, radius, dim_x, dim_y):
     plt.figure()
-    dist = np.arange(0, 100, 0.01)
-    interaction_strength = [lambda r : interaction_fn(r) for r in dist]
+    dist = np.arange(0, euclidean_dist_2D((0, 0), (dim_x, dim_y), 1), 0.01)
+    interaction_strength = [interaction_fn(r) for r in dist]
     plt.plot(dist, interaction_strength)
     plt.xlabel('Distance - r')
     plt.ylabel('Interaction Strength - J')
@@ -96,4 +99,123 @@ def plot_runtime(radius, runtime):
     plt.ylabel('Runtime')
     plt.show()
 
+def plot_spin_lattice(spin_history, lattice_X, lattice_Y):
+    spin_vectors_history = [get_spin_vectors(spins) for spins in spin_history]
+    u_x, u_y, u_z, u_u, u_v, u_w, d_x, d_y, d_z, d_u, d_v, d_w = spin_vectors_history[0]
+    fig = go.Figure(
+        data=[
+            go.Cone(x=u_x, y=u_y, z=u_z, u=u_u, v=u_v, w=u_w,
+                anchor='tail', sizeref=1.5, colorscale=[[0, 'red'], [1, 'red']], showscale = False
+            ),
+            go.Cone(x=d_x, y=d_y, z=d_z, u=d_u, v=d_v, w=d_w,
+                anchor='tail', sizeref=1.5, colorscale=[[0, 'blue'], [1, 'blue']], showscale = False
+            )
+        ], 
+        layout=go.Layout(
+            updatemenus=[dict(
+                type="buttons",
+                buttons=[
+                    dict(label="Play",
+                        method="animate",
+                        args=[None, 
+                            dict(frame=dict(duration=0.1, redraw=True), 
+                                transition=dict(duration=0),
+                                fromcurrent=True,
+                                mode='immediate'
+                            )
+                        ]
+                    ),
+                    dict(label="Stop",
+                        method="animate",
+                        args=[None, 
+                            dict(frame=dict(duration=0, redraw=False), 
+                                transition=dict(duration=0),
+                                mode='immediate'
+                            )
+                        ]
+                    )
+                ]
+            )],
+            sliders=[dict(
+                steps=[dict(method='animate',
+                    args=[[str(t)], 
+                        dict(mode='immediate', frame=dict(duration=0.1, redraw=True), transition=dict(duration=0))
+                    ], label=str(t)
+                ) for t in range(len(spin_vectors_history))], 
+                transition=dict(duration=100),
+                currentvalue=dict(font=dict(size=12), visible=True, xanchor= 'center'),
+                len=1.0
+            )],
+            scene = dict(zaxis = dict(nticks=2, range=[-1, 1]))
+        ),
+        frames=[go.Frame(
+            data=[
+                go.Cone(x=u_x, y=u_y, z=u_z, u=u_u, v=u_v, w=u_w, 
+                    anchor='tail', sizemode='absolute', colorscale=[[0, 'red'], [1, 'red']], showscale = False
+                ),
+                go.Cone(x=d_x, y=d_y, z=d_z, u=d_u, v=d_v, w=d_w, 
+                    anchor='tail', sizemode='absolute', colorscale=[[0, 'blue'], [1, 'blue']], showscale = False
+                )
+            ],
+            name=str(t)
+        ) for t, (u_x, u_y, u_z, u_u, u_v, u_w, d_x, d_y, d_z, d_u, d_v, d_w) in enumerate(spin_vectors_history)]
+    )
+    fig.show()
+
+def get_spin_vectors(spins):
+    # x = []
+    # y = []
+    # z = np.zeros(len(spins))
+    # u = np.zeros(len(spins))
+    # v = np.zeros(len(spins))
+    # w = []
+    # for atom, spin in spins.items():
+    #     x.append(atom[0])
+    #     y.append(atom[1])
+    #     w.append(spin)
+    # return np.array(x), np.array(y), z, u, v, np.array(w)
+    u_x = []
+    u_y = []
+    u_z = []
+    u_u = []
+    u_v = []
+    u_w = []
+    d_x = []
+    d_y = []
+    d_z = []
+    d_u = []
+    d_v = []
+    d_w = []
+    for atom, spin in spins.items():
+        if spin > 0:
+            u_x.append(atom[0])
+            u_y.append(atom[1])
+            u_z.append(0)
+            u_u.append(0)
+            u_v.append(0)
+            u_w.append(spin)
+        else:
+            d_x.append(atom[0])
+            d_y.append(atom[1])
+            d_z.append(0)
+            d_u.append(0)
+            d_v.append(0)
+            d_w.append(spin)
+    return u_x, u_y, u_z, u_u, u_v, u_w, d_x, d_y, d_z, d_u, d_v, d_w
+
+def get_atoms(spins):
+    x = []
+    y = []
+    z = np.zeros(len(spins))
+    for atom in spins.keys():
+        x.append(atom[0])
+        y.append(atom[1])
+    return np.array(x), np.array(y), z
+
+def plot_objective_in_time(objective_history):
+    plt.figure()
+    plt.plot(range(len(objective_history)), objective_history)
+    plt.xlabel('Time Steps - t')
+    plt.ylabel('Objective')
+    plt.show()
 
