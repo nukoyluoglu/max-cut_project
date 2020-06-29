@@ -1,7 +1,7 @@
 import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
-from plotly import graph_objects as go
+from plotly import graph_objects as go, express as px
 
 class Vertex(object):
 
@@ -90,16 +90,16 @@ def plot_interaction(interaction_fn, radius, dim_x, dim_y):
     plt.ylabel('Interaction Strength - J')
     ymin, ymax = plt.ylim()
     plt.vlines(radius, ymin, ymax, linestyles='dashed', colors='g')
-    plt.show()
+    plt.savefig('interaction_function_radius_{}.png'.format(radius))
 
-def plot_runtime(radius, runtime):
+def plot_runtime(radii, runtimes):
     plt.figure()
-    plt.plot(radius, runtime)
+    plt.plot(radii, runtimes)
     plt.xlabel('Radius')
     plt.ylabel('Runtime')
-    plt.show()
+    plt.savefig('runtime.png')
 
-def plot_spin_lattice(spin_history, lattice_X, lattice_Y):
+def plot_spin_lattice(spin_history, lattice_X, lattice_Y, radius):
     spin_vectors_history = [get_spin_vectors(spins) for spins in spin_history]
     u_x, u_y, u_z, u_u, u_v, u_w, d_x, d_y, d_z, d_u, d_v, d_w = spin_vectors_history[0]
     fig = go.Figure(
@@ -160,7 +160,7 @@ def plot_spin_lattice(spin_history, lattice_X, lattice_Y):
             name=str(t)
         ) for t, (u_x, u_y, u_z, u_u, u_v, u_w, d_x, d_y, d_z, d_u, d_v, d_w) in enumerate(spin_vectors_history)]
     )
-    fig.show()
+    fig.write_html('spin_lattice_radius_{}.html'.format(radius))
 
 def get_spin_vectors(spins):
     # x = []
@@ -212,10 +212,16 @@ def get_atoms(spins):
         y.append(atom[1])
     return np.array(x), np.array(y), z
 
-def plot_objective_in_time(objective_history):
+def plot_energy_in_time(objective_history, radius):
     plt.figure()
     plt.plot(range(len(objective_history)), objective_history)
     plt.xlabel('Time Steps - t')
-    plt.ylabel('Objective')
-    plt.show()
+    plt.ylabel('Energy - E')
+    plt.savefig('energy_in_time_radius_{}.png'.format(radius))
+
+def plot_params_performance(data, y_axis, x_axis, data_title, y_axis_title, x_axis_title, radius, best_params):
+    title = 'parameter selection (radius = {}, best acceptance = {}, best cooling = {}'.format(radius, best_params['acceptance'], best_params['cooling'])
+    fig = px.imshow(data, title=title, labels=dict(x=x_axis_title, y=y_axis_title, color=data_title), x=x_axis, y=y_axis, color_continuous_scale='RdBu_r')
+    fig.write_html('parameter_selection_radius_{}.html'.format(radius))
+
 

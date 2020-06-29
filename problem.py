@@ -49,8 +49,11 @@ class MaxCutProblem(util.Graph):
             else:
                 self.switch_change[n] -= 2 * w
     
-    def get_switch_change(self, v):
+    def get_switch_objective_change(self, v):
         return self.switch_change[v]
+
+    def get_switch_energy_change(self, v):
+        return - self.switch_change[v]
 
     def get_partition(self):
         return self.partition
@@ -58,17 +61,26 @@ class MaxCutProblem(util.Graph):
     def get_objective(self):
         return self.objective
 
+    def get_energy(self):
+        return - self.objective
+
     def get_best_partition(self):
         return self.best_partition
     
     def get_best_objective(self):
         return self.best_objective
 
+    def get_best_energy(self):
+        return - self.best_objective
+
     def get_partition_history(self):
         return self.partition_history
     
     def get_objective_history(self):
         return self.objective_history
+
+    def get_energy_history(self):
+        return [- 1.0 * objective for objective in self.objective_history]
 
 
 
