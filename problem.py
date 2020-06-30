@@ -8,19 +8,20 @@ class MaxCutProblem(util.Graph):
     def __init__(self, setup):
         super().__init__(setup.get_vertex_dict())
         self.partition = {v: 2 * np.random.randint(2) - 1 for v in self.get_vertices()}
-        self.objective = self.calc_objective()
+        self.objective = 0
+        self.set_objective()
         self.switch_change = self.calc_objective_change_per_switch()
         self.partition_history = [copy.deepcopy(self.partition)]
         self.objective_history = [copy.deepcopy(self.objective)]
         self.best_partition = self.partition
         self.best_objective = self.objective
     
-    def calc_objective(self):
+    def set_objective(self):
         objective = 0
         for v1, v2 in combinations(self.get_vertices(), 2):
             if self.partition[v1] != self.partition[v2]:
                 objective += self.get_edge(v1, v2)
-        return objective
+        self.objective = objective
 
     def calc_objective_change_per_switch(self):
         change = {v: 0 for v in self.get_vertices()}
@@ -36,8 +37,9 @@ class MaxCutProblem(util.Graph):
     def switch(self, v):
         self.partition[v] = - self.partition[v]
         self.objective += self.switch_change[v]
-        self.partition_history.append(copy.deepcopy(self.partition))
-        self.objective_history.append(copy.deepcopy(self.objective))
+        # TODO: make independent of switch made or not
+        # self.partition_history.append(copy.deepcopy(self.partition))
+        # self.objective_history.append(copy.deepcopy(self.objective))
         if self.objective > self.best_objective:
             self.best_objective = self.objective
             self.best_partition = self.partition
@@ -82,6 +84,8 @@ class MaxCutProblem(util.Graph):
     def get_energy_history(self):
         return [- 1.0 * objective for objective in self.objective_history]
 
+    def set_partition(self, partition):
+        self.partition = partition
 
 
 

@@ -12,7 +12,7 @@ class SpinLattice(util.Graph):
         self.num_cols = int(lattice_Y / self.lattice_spacing)
         for r in range(self.num_rows):
             for c in range(self.num_cols):
-                if np.random.uniform() <= prob_full: 
+                if np.random.uniform() <= prob_full: # turn off cells randomly
                     self.add_vertex((r, c))
 
     def turn_on_interactions(self, interaction_fn):
