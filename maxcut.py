@@ -13,7 +13,7 @@ LATTICE_SPACING = 1
 NUM_PERFORMANCE_TRIALS = 100
 NUM_PARAM_TRIALS = 20  
 
-def run(algorithm, interaction_fn, radius, exact_best_energy=None, plot=False):
+def run(algorithm, interaction_fn, radius, exact_best_energy=None, plot=False, fill=1.0):
     if plot:
         # plot of radius vs. interaction strength
         util.plot_interaction(interaction_fn(radius), radius, LATTICE_X, LATTICE_Y)
@@ -27,7 +27,7 @@ def run(algorithm, interaction_fn, radius, exact_best_energy=None, plot=False):
     if exact_best_energy:
         best_energy = exact_best_energy
     for i in range(NUM_PERFORMANCE_TRIALS):
-        setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING)
+        setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING, prob_full=fill)
         setup.turn_on_interactions(interaction_fn(radius))
         prob = problem.MaxCutProblem(setup)
         myGlobals = globals()
@@ -53,9 +53,8 @@ def run(algorithm, interaction_fn, radius, exact_best_energy=None, plot=False):
         util.plot_energy_temp_in_time(energy_history_trials[best_trial], temp_history_trials[best_trial], radius)
     return {'partition_histories': partition_history_trials, 'energy_histories': energy_history_trials, 'runtimes': runtime_trials, 'temp_histories': temp_history_trials, 'steps': step_trials}
 
-def get_simulated_annealing_optimal_params(algorithm, interaction_fn, radius, prev_best_acceptance, exact_best_energy=None, plot=False):
+def get_simulated_annealing_optimal_params(algorithm, interaction_fn, radius, prev_best_acceptance, exact_best_energy=None, plot=False, fill=1.0):
     acceptances = np.linspace(0, 0.9, 10)
-    # coolings = np.linspace(0.8, 0.95, 4)
     coolings = np.linspace(0.8, 0.9, 3)
     best_runtime = float('inf')
     best_step = float('inf')
@@ -74,7 +73,7 @@ def get_simulated_annealing_optimal_params(algorithm, interaction_fn, radius, pr
             energy = 0
             step = 0
             for _ in range(NUM_PARAM_TRIALS):
-                setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING)
+                setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING, prob_full=fill)
                 setup.turn_on_interactions(interaction_fn(radius))
                 prob = problem.MaxCutProblem(setup)
                 algorithm.set_cooling_schedule(acceptances[i], coolings[j])
@@ -112,33 +111,33 @@ def get_simulated_annealing_optimal_params(algorithm, interaction_fn, radius, pr
             break
         if not exact_best_energy and best_energy_now >= best_energy_prev: # minimum energy did not decrease
             no_improvement += 1
-        if no_improvement >= 3:
+        if no_improvement >= 1:
             break
         best_energy_prev = best_energy_now
     if plot:
         util.plot_params_performance(steps, acceptances, coolings, 'steps', 'acceptance probability', 'cooling coefficient', radius, best_params)
     return best_params
 
-def get_exact_solutions(interaction_fn):
+def get_exact_solutions(interaction_fn, interaction_fn_name=None, fill=1.0):
     exact_best_solution_by_radius = {}
     for radius in np.arange(1, util.euclidean_dist_2D((0, 0), (LATTICE_X, LATTICE_Y), 1)):
-        setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING)
+        setup = experiment.SpinLattice(LATTICE_X, LATTICE_Y, LATTICE_SPACING, prob_full=fill)
         setup.turn_on_interactions(interaction_fn(radius))
         prob = problem.MaxCutProblem(setup)
         exact_best_energy, exact_best_partitions, total_num_partitions = algorithms.BruteForce().solve(prob)
         sample_optimal_partition = [exact_best_partitions[0]]
-        filename = 'step_fn_exact_sols_{}x{}/optimal_spin_lattice_radius_{}.html'.format(LATTICE_X, LATTICE_Y, radius)
+        filename = interaction_fn_name + '_exact_sols_{}x{}/optimal_spin_lattice_radius_{}.html'.format(LATTICE_X, LATTICE_Y, radius)
         util.plot_spin_lattice(sample_optimal_partition, LATTICE_X, LATTICE_Y, radius, filename=filename)
         exact_best_solution_by_radius[radius] = {'minimum_energy': exact_best_energy, 'state_space_size': total_num_partitions}
-    w = csv.writer(open('exact_solutions_{}x{}.csv'.format(LATTICE_X, LATTICE_Y), 'w'))
+    w = csv.writer(open(interaction_fn_name + '_exact_sols_{}x{}/'.format(LATTICE_X, LATTICE_Y) + interaction_fn_name + '_exact_sols_{}x{}.csv'.format(LATTICE_X, LATTICE_Y), 'w'))
     for radius, solution in exact_best_solution_by_radius.items():
         w.writerow([radius, solution['minimum_energy'], solution['state_space_size']])
     return exact_best_solution_by_radius
 
-def algorithm_performance(algorithm_name, interaction_fn, brute_force=False):
+def algorithm_performance(algorithm_name, interaction_fn, interaction_fn_name=None, brute_force=False, fill=1.0):
     if brute_force:
         exact_best_energy_by_radius = {}
-        r = csv.reader(open('exact_solutions_{}x{}/exact_solutions_{}x{}.csv'.format(LATTICE_X, LATTICE_Y, LATTICE_X, LATTICE_Y), 'r'))
+        r = csv.reader(open(interaction_fn_name + '_exact_sols_{}x{}/'.format(LATTICE_X, LATTICE_Y) + interaction_fn_name + '_exact_sols_{}x{}.csv'.format(LATTICE_X, LATTICE_Y), 'r'))
         for row in r:
             exact_best_energy_by_radius[float(row[0])] = float(row[1])
     if algorithm_name == 'simulated annealing':
@@ -150,9 +149,9 @@ def algorithm_performance(algorithm_name, interaction_fn, brute_force=False):
                 exact_best_energy = exact_best_energy_by_radius[radius]
             algorithm = algorithms.SimulatedAnnealing()
             plot = True
-            best_params = get_simulated_annealing_optimal_params(algorithm, interaction_fn, radius, prev_best_acceptance, exact_best_energy=exact_best_energy, plot=plot)
+            best_params = get_simulated_annealing_optimal_params(algorithm, interaction_fn, radius, prev_best_acceptance, exact_best_energy=exact_best_energy, plot=plot, fill=fill)
             algorithm.set_cooling_schedule(best_params['acceptance'], best_params['cooling'])
-            algorithm_performance_by_radius[radius] = run(algorithm, interaction_fn, radius, exact_best_energy=exact_best_energy, plot=plot)
+            algorithm_performance_by_radius[radius] = run(algorithm, interaction_fn, radius, exact_best_energy=exact_best_energy, plot=plot, fill=fill)
             prev_best_acceptance = best_params['acceptance']
         radii = []
         runtimes = []
@@ -171,10 +170,16 @@ def algorithm_performance(algorithm_name, interaction_fn, brute_force=False):
         # TODO: faster for short-range case: mechanism for knowing if it converges
         # TODO: filling of the lattice - randomly turn off corners
         # TODO: different interaction functions
+        # TODO: find convergence without imposing cutoff for decaying interaction functions
 
 def main(plot=True):
     # get_exact_solutions(experiment.step_fn)
-    algorithm_performance('simulated annealing', experiment.step_fn)
+    algorithm_performance('simulated annealing', experiment.step_fn, brute_force=False)
+    # get_exact_solutions(experiment.power_decay_fn, 'power_decay_fn')
+    # algorithm_performance('simulated annealing', experiment.power_decay_fn, 'power_decay_fn', brute_force=True)
+    # get_exact_solutions(experiment.step_fn, 'step_fn_0.8_filled', fill=0.8)
+    # since system is probabilistic, brute force is not accurate
+    # algorithm_performance('simulated annealing', experiment.step_fn, 'step_fn_0.8_filled', brute_force=False, fill=0.8)
     # algorithm_performance(algorithms.SemiDefinite())
 
 if __name__ == '__main__':
