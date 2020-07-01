@@ -11,8 +11,8 @@ class MaxCutProblem(util.Graph):
         self.objective = 0
         self.set_objective()
         self.switch_change = self.calc_objective_change_per_switch()
-        self.partition_history = [copy.deepcopy(self.partition)]
-        self.objective_history = [copy.deepcopy(self.objective)]
+        self.partition_history = [copy.copy(self.partition)]
+        self.objective_history = [copy.copy(self.objective)]
         self.best_partition = self.partition
         self.best_objective = self.objective
     
@@ -37,9 +37,6 @@ class MaxCutProblem(util.Graph):
     def switch(self, v):
         self.partition[v] = - self.partition[v]
         self.objective += self.switch_change[v]
-        # TODO: make independent of switch made or not
-        # self.partition_history.append(copy.deepcopy(self.partition))
-        # self.objective_history.append(copy.deepcopy(self.objective))
         if self.objective > self.best_objective:
             self.best_objective = self.objective
             self.best_partition = self.partition
@@ -50,12 +47,51 @@ class MaxCutProblem(util.Graph):
                 self.switch_change[n] += 2 * w
             else:
                 self.switch_change[n] -= 2 * w
-    
+
+    def switch_ensemble(self, v_ensemble):
+        for v in v_ensemble:
+            self.partition[v] = - self.partition[v]
+            self.objective += self.switch_change[v]
+            self.switch_change[v] = - self.switch_change[v]
+            for n in self.get_neighbors(v):
+                w = self.get_edge(v, n)
+                if n in v_ensemble:
+                    if self.partition[v] == self.partition[n]:
+                        self.objective -= w
+                        self.switch_change[n] += w
+                    else:
+                        self.objective += w
+                        self.switch_change[n] -= w
+                else:
+                    if self.partition[v] == self.partition[n]:
+                        self.switch_change[n] += 2 * w
+                    else:
+                        self.switch_change[n] -= 2 * w
+        if self.objective > self.best_objective:
+            self.best_objective = self.objective
+            self.best_partition = self.partition
+ 
     def get_switch_objective_change(self, v):
         return self.switch_change[v]
 
     def get_switch_energy_change(self, v):
         return - self.switch_change[v]
+
+    def get_switch_ensemble_objective_change(self, v_ensemble):
+        delta = 0
+        for v in v_ensemble:
+            delta += self.switch_change[v]
+            for n in self.get_neighbors(v):
+                w = self.get_edge(v, n)
+                if n in v_ensemble:
+                    if self.partition[v] == self.partition[n]:
+                        delta -= w
+                    else:
+                        delta += w
+        return delta
+
+    def get_switch_ensemble_energy_change(self, v_ensemble):
+        return - self.get_switch_ensemble_objective_change(v_ensemble)
 
     def get_partition(self):
         return self.partition
