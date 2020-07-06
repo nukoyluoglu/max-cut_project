@@ -41,12 +41,12 @@ def run(algorithm, interaction_fn, radius, exact_best_energy=None, plot=False, f
         temp_history_trials.append(copy.deepcopy(algorithm.get_temp_history()))
         runtime_trials.append(runtime)
         step_trials.append(len(algorithm.get_temp_history()))
-        if not exact_best_energy and prob.get_best_energy() < best_energy:
+        if not exact_best_energy and prob.get_energy() < best_energy:
             best_trial = i
-            best_energy = prob.get_best_energy()
-        elif exact_best_energy and prob.get_best_energy() == best_energy:
+            best_energy = prob.get_energy()
+        elif exact_best_energy and prob.get_energy() == best_energy:
             best_trial = i
-        elif exact_best_energy and prob.get_best_energy() < best_energy:
+        elif exact_best_energy and prob.get_energy() < best_energy:
             raise RuntimeError("Energy cannot be lower than exact minimum energy")
     if plot: # display plot for best trial only
         # sample visualization of spin dynamics
@@ -72,7 +72,7 @@ def run_trials_for_param(algorithm, interaction_fn, radius, init_temp, cool_rate
         myGlobals.update({'algorithm': algorithm, 'prob': prob})
         runtime = timeit.timeit(stmt='algorithm.solve(prob)', number=1, globals=myGlobals)
         step = len(algorithm.get_temp_history())
-        final_energy = prob.get_best_energy()
+        final_energy = prob.get_energy()
         energy_hist = prob.get_energy_history()
         temp_hist = algorithm.get_temp_history()
         ave_runtime += runtime
@@ -89,6 +89,13 @@ def run_trials_for_param(algorithm, interaction_fn, radius, init_temp, cool_rate
             raise RuntimeError('Length of temperature and energy histories must match')
         for t in range(len(temp_hist)):
             temp = temp_hist[t]
+            # TODO: instead of last energy select last 50 energies (equilibrium)
+            # TODO: get STD dev and plot error bars
+            # TODO: Plot mean energy for each temperature and also plot std dev
+            # Finite temperature - fluctuations - get mean energy instead of final energy
+            # 50 equilibrate
+            # 50 equilibrium
+            # Ave over last 50
             if t == len(temp_hist) - 1 or temp != temp_hist[t + 1]: # last energy at given temperature after equilibration
                 ave_energy_vs_temp.setdefault(temp, []).append(energy_hist[t])
     for temp in ave_energy_vs_temp.keys():
@@ -98,14 +105,12 @@ def run_trials_for_param(algorithm, interaction_fn, radius, init_temp, cool_rate
     ave_runtime /= NUM_PARAM_TRIALS
     return {'ave_final_energy': ave_final_energy, 'ave_runtime': ave_runtime, 'ave_step': ave_step, 'best_final_energy': best_final_energy, 'ave_energy_vs_temp': ave_energy_vs_temp, 'best_partition_history': best_prob.get_partition_history(), 'best_energy_history': best_prob.get_energy_history(), 'best_temp_history': best_temp_history}
 
-def search_params(algorithm_name, interaction_fn, radius, exact_best_energy=None, fill=1.0, plot=True):
+def search_params(algorithm_name, interaction_fn, radius, ensemble=1, exact_best_energy=None, fill=1.0, plot=True):
     if algorithm_name == 'simulated annealing':
-        algorithm = algorithms.SimulatedAnnealing()
+        algorithm = algorithms.SimulatedAnnealing(ensemble=ensemble)
         init_temps = np.linspace(0, 10, 6)
-        # init_temps = np.linspace(10, 10, 1)
         cool_rates = np.linspace(0.1, 0.9, 9)
         best = {'energy': 0, 'step': float('inf'), 'runtime': float('inf'), 'params': {'init_temp': None, 'cool_rate': None}, 'partition_history': [], 'energy_history': [], 'temp_history': []}
-        # steps = np.full((len(init_temps), len(cool_rates)), float('nan'))
         best_solution = None
         ave_energy_vs_temp_by_init_temp = {}
         for i in range(len(init_temps)): # consider acceptances starting from optimal value for previous radius
@@ -116,8 +121,6 @@ def search_params(algorithm_name, interaction_fn, radius, exact_best_energy=None
                 if param_solution['best_final_energy'] < best['energy'] or (param_solution['best_final_energy'] == best['energy'] and param_solution['ave_step'] < best['step']):
                     best['energy'] = param_solution['best_final_energy']
                     best_solution = param_solution
-                    # steps = np.full((len(init_temps), len(cool_rates)), float('nan'))
-                    # steps[i][j] = step
                     best['step'] = best_solution['ave_step']
                     best['runtime'] = best_solution['ave_runtime']
                     best['params']['init_temp'] = init_temps[i]
@@ -133,7 +136,6 @@ def search_params(algorithm_name, interaction_fn, radius, exact_best_energy=None
         if plot:
             for init_temp, ave_energy_vs_temp_by_cool_rate in ave_energy_vs_temp_by_init_temp.items():
                 util.plot_params_energy_vs_temp(ave_energy_vs_temp_by_cool_rate, init_temp, best['params'], radius, LATTICE_X, LATTICE_Y, exact_best_energy)
-            # util.plot_params_steps(steps, init_temps, cool_rates, 'steps', 'initial temperature', 'cooling rate', radius, best_params)
             # sample visualization of spin dynamics for best params
             util.plot_spin_lattice([best['partition_history'][-1]], LATTICE_X, LATTICE_Y, radius)
             # sample plot of energy vs. time for best params
@@ -146,7 +148,7 @@ def get_exact_solutions(interaction_fn, interaction_fn_name=None, fill=1.0):
     for radius in np.arange(1, util.euclidean_dist_2D((0, 0), (LATTICE_X, LATTICE_Y), 1)):
         prob = prob = initialize_problem(interaction_fn, radius, fill=fill)
         exact_best_energy, num_best_partitions, sample_best_partition, total_num_partitions, all_partition_energies = algorithms.BruteForce().solve(prob)
-        filename = interaction_fn_name + '_exact_sols_{}x{}/optimal_spin_lattice_radius_{}.gif'.format(LATTICE_X, LATTICE_Y, radius)
+        filename = interaction_fn_name + '_exact_sols_{}x{}/optimal_spin_lattice_radius_{}.html'.format(LATTICE_X, LATTICE_Y, radius)
         util.plot_spin_lattice([sample_best_partition], LATTICE_X, LATTICE_Y, radius, filename=filename)
         w1.writerow([radius, exact_best_energy, num_best_partitions, total_num_partitions])
         w2 = csv.writer(open(interaction_fn_name + '_exact_sols_{}x{}/energies_radius_{}.csv'.format(LATTICE_X, LATTICE_Y, radius), 'w'))
@@ -154,7 +156,7 @@ def get_exact_solutions(interaction_fn, interaction_fn_name=None, fill=1.0):
         for energy in all_partition_energies:
             w2.writerow([energy])
 
-def algorithm_performance(algorithm_name, interaction_fn, interaction_fn_name=None, fill=1.0, brute_force_solution=None, plot=True):
+def algorithm_performance(algorithm_name, interaction_fn, interaction_fn_name=None, fill=1.0, ensemble=1, brute_force_solution=None, plot=True):
     algorithm_performance_by_radius = {}
     radii = []
     runtimes = []
@@ -166,7 +168,7 @@ def algorithm_performance(algorithm_name, interaction_fn, interaction_fn_name=No
         exact_best_energy = None
         if brute_force_solution:
             exact_best_energy = brute_force_solution[radius]
-        best_solution = search_params(algorithm_name, interaction_fn, radius, exact_best_energy=exact_best_energy, fill=fill)
+        best_solution = search_params(algorithm_name, interaction_fn, radius, ensemble=ensemble, exact_best_energy=exact_best_energy, fill=fill)
         algorithm_performance_by_radius[radius] = best_solution
         radii.append(radius)
         runtimes.append(best_solution['runtime'])
@@ -186,17 +188,17 @@ def algorithm_performance(algorithm_name, interaction_fn, interaction_fn_name=No
 def main(plot=True):
     exact_min_energy_by_radius = None
     # brute force, step function
-    # get_exact_solutions(experiment.step_fn, 'step_fn')
-    # exact_min_energy_by_radius = {}
-    # num_ground_states_by_radius = {}
-    # r = csv.reader(open('step_fn_exact_sols_{}x{}/optimal_sols.csv'.format(LATTICE_X, LATTICE_Y), 'r'))
-    # next(r)
-    # for row in r:
-    #     radius = float(row[0])
-    #     exact_min_energy_by_radius[radius] = float(row[1])
-    #     num_ground_states_by_radius[radius] = float(row[2])
+    get_exact_solutions(experiment.step_fn, 'step_fn')
+    exact_min_energy_by_radius = {}
+    num_ground_states_by_radius = {}
+    r = csv.reader(open('step_fn_exact_sols_{}x{}/optimal_sols.csv'.format(LATTICE_X, LATTICE_Y), 'r'))
+    next(r)
+    for row in r:
+        radius = float(row[0])
+        exact_min_energy_by_radius[radius] = float(row[1])
+        num_ground_states_by_radius[radius] = float(row[2])
     # simulated annealing, step function
-    algorithm_performance('simulated annealing', experiment.step_fn, brute_force_solution=exact_min_energy_by_radius)
+    algorithm_performance('simulated annealing', experiment.step_fn, ensemble=1, brute_force_solution=exact_min_energy_by_radius)
     # get_exact_solutions(experiment.power_decay_fn, 'power_decay_fn')
     # algorithm_performance('simulated annealing', experiment.power_decay_fn, 'power_decay_fn', brute_force=True)
     # get_exact_solutions(experiment.step_fn, 'step_fn_0.8_filled', fill=0.8)

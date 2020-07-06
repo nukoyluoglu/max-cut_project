@@ -116,7 +116,61 @@ def get_spin_lattice(spins, lattice_X, lattice_Y):
         lattice[atom[0]][atom[1]] = spin
     return lattice
 
+def get_spin_lattice_xyz(spins, lattice_X, lattice_Y):
+    x_data, y_data = np.meshgrid(range(lattice_X), range(lattice_Y))
+    z_data = []
+    for x, y in zip(x_data.flatten(), y_data.flatten()):
+        if (x, y) in spins.keys():
+            z_data.append(spins[(x, y)])
+        else:
+            z_data.append(0)
+    return x_data.flatten(), y_data.flatten(), z_data
+
+def animation_layout(spin_history):
+    layout=go.Layout(
+        updatemenus=[dict(
+            type="buttons",
+            buttons=[
+                dict(label="Play",
+                    method="animate",
+                    args=[None, 
+                        dict(frame=dict(duration=0.1, redraw=True), 
+                            transition=dict(duration=0),
+                            fromcurrent=True,
+                            mode='immediate'
+                        )
+                    ]
+                ),
+                dict(label="Stop",
+                    method="animate",
+                    args=[None, 
+                        dict(frame=dict(duration=0, redraw=False), 
+                            transition=dict(duration=0),
+                            mode='immediate'
+                        )
+                    ]
+                )
+            ]
+        )],
+        sliders=[dict(
+            steps=[dict(method='animate',
+                args=[[str(t)], 
+                    dict(mode='immediate', frame=dict(duration=0.1, redraw=True), transition=dict(duration=0))
+                ], label=str(t)
+            ) for t in range(len(spin_history))], 
+            transition=dict(duration=100),
+            currentvalue=dict(font=dict(size=12), visible=True, xanchor= 'center'),
+            len=1.0
+        )],
+        # scene=dict(zaxis = dict(nticks=2, range=[-1, 1]))
+        scene=dict(aspectmode='data')
+    )
+    return layout
+
+
 def plot_spin_lattice(spin_history, lattice_X, lattice_Y, radius, filename=None, fancy=False):
+    # storage issue
+    # TODO: plot 2 energies per temperature
     fig = plt.figure()
     im = plt.imshow(get_spin_lattice(spin_history[0], lattice_X, lattice_Y), cmap='bwr', animated=True)
     def update_fig(t):
@@ -127,6 +181,20 @@ def plot_spin_lattice(spin_history, lattice_X, lattice_Y, radius, filename=None,
     if not filename:
         filename = 'spin_lattice_radius_{}.gif'.format(radius)
     ani.save(filename, writer='imagemagick', fps=30)
+
+    # spin_lattice_history = [get_spin_lattice_xyz(spins, lattice_X, lattice_Y) for spins in spin_history]
+    # x, y, z = spin_lattice_history[0]
+    # fig = go.Figure(
+    #     data=[go.Heatmap(x=x, y=y, z=z, colorscale='Bluered', showscale=False)],
+    #     frames=[go.Frame(
+    #         data=[go.Heatmap(x=x, y=y, z=z, colorscale='Bluered', showscale=False)], name=str(t)
+    #     ) for t, (x, y, z) in enumerate(spin_lattice_history)],
+    #     layout=animation_layout(spin_history)
+    # )
+    # if filename:
+    #         fig.write_html(filename)
+    # else:
+    #     fig.write_html('spin_lattice_radius_{}.html'.format(radius))
 
     if fancy:
         spin_vectors_history = [get_spin_vectors(spins) for spins in spin_history]
@@ -140,43 +208,7 @@ def plot_spin_lattice(spin_history, lattice_X, lattice_Y, radius, filename=None,
                     anchor='tail', sizeref=1.5, colorscale=[[0, 'blue'], [1, 'blue']], showscale = False
                 )
             ], 
-            layout=go.Layout(
-                updatemenus=[dict(
-                    type="buttons",
-                    buttons=[
-                        dict(label="Play",
-                            method="animate",
-                            args=[None, 
-                                dict(frame=dict(duration=0.1, redraw=True), 
-                                    transition=dict(duration=0),
-                                    fromcurrent=True,
-                                    mode='immediate'
-                                )
-                            ]
-                        ),
-                        dict(label="Stop",
-                            method="animate",
-                            args=[None, 
-                                dict(frame=dict(duration=0, redraw=False), 
-                                    transition=dict(duration=0),
-                                    mode='immediate'
-                                )
-                            ]
-                        )
-                    ]
-                )],
-                sliders=[dict(
-                    steps=[dict(method='animate',
-                        args=[[str(t)], 
-                            dict(mode='immediate', frame=dict(duration=0.1, redraw=True), transition=dict(duration=0))
-                        ], label=str(t)
-                    ) for t in range(len(spin_vectors_history))], 
-                    transition=dict(duration=100),
-                    currentvalue=dict(font=dict(size=12), visible=True, xanchor= 'center'),
-                    len=1.0
-                )],
-                scene = dict(zaxis = dict(nticks=2, range=[-1, 1]))
-            ),
+            layout=animation_layout(spin_history),
             frames=[go.Frame(
                 data=[
                     go.Cone(x=u_x, y=u_y, z=u_z, u=u_u, v=u_v, w=u_w, 
@@ -273,7 +305,7 @@ def boltzmann_dist(all_states_energy, temp):
 
 def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, init_temp, best_params, radius, lattice_x, lattice_y, exact_best_energy=None):
     plt.figure()
-    x_right_lim = max
+    x_right_lim = 0
     for cool_rate, ave_energy_vs_temp in ave_energy_vs_temp_by_params.items():
         inverse_temps = []
         ave_energies = []
@@ -281,7 +313,7 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, init_temp, best_par
             inverse_temps.append(1.0 / temp)
             ave_energies.append(ave_energy)
         x_right_lim = max(inverse_temps[-5], x_right_lim)
-        label = 'T_0 = {}, r = {}, T_f = {}'.format(init_temp, cool_rate, 1.0 / inverse_temps[-1])
+        label = 'T_0 = {}, r = {}, T_f = {}'.format(init_temp, round(cool_rate, 1), np.format_float_scientific(1.0 / inverse_temps[-1], precision=1))
         if init_temp == best_params['init_temp'] and cool_rate == best_params['cool_rate']:
             label += ', optimal'
         plt.plot(inverse_temps, ave_energies, label=label)

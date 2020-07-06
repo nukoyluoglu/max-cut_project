@@ -27,15 +27,15 @@ class SimulatedAnnealing(MaxCutAlgorithm):
             energy_change_at_temp = 0
             num_equil = 0
             for _ in range(MAX_NUM_ITER_EQUILIBRIUM):
-                if ensemble > 1:
-                    v_ensemble = [problem.get_vertices()[i] for i in np.random.choice(problem.get_num_vertices(), ensemble)]
+                if self.ensemble > 1:
+                    v_ensemble = [problem.get_vertices()[i] for i in np.random.choice(problem.get_num_vertices(), self.ensemble)]
                     delta = problem.get_switch_ensemble_energy_change(v_ensemble)
                 else:
                     v = problem.get_vertices()[np.random.choice(problem.get_num_vertices())]
                     delta = problem.get_switch_energy_change(v)
-                boltzmann_factor = np.exp(- delta / temp) if temp >= 1e-300 else 0.0
-                if delta <= 0 or np.random.uniform() <= boltzmann_factor:
-                    if ensemble > 1:
+                ratio = delta / temp if temp >= 1e-300 else float('inf')
+                if delta <= 0 or np.random.uniform() <= np.exp(- ratio):
+                    if self.ensemble > 1:
                         problem.switch_ensemble(v_ensemble)
                     else:
                         problem.switch(v)
@@ -46,18 +46,19 @@ class SimulatedAnnealing(MaxCutAlgorithm):
                 problem.get_partition_history().append(copy.copy(problem.get_partition()))
                 problem.get_objective_history().append(copy.copy(problem.get_objective()))
                 self.temp_history.append(temp)
-                if num_equil >= EQUILIBRIUM_TRESHOLD and problem.get_best_energy() == problem.get_energy():
+                if num_equil >= EQUILIBRIUM_TRESHOLD:
                     break          
             if energy_change_at_temp == 0:
                 num_temp_no_change += 1
             else:
                 num_temp_no_change = 0
-            if num_temp_no_change >= NO_CHANGE_TRESHOLD_COOLING and problem.get_best_energy() == problem.get_energy():
+            if num_temp_no_change >= NO_CHANGE_TRESHOLD_COOLING:
                 break
             
 
     def set_cooling_schedule(self, init_temp, cool_rate):
         if init_temp == 0:
+            # TODO: INIT TEMP 0 PROBLEM
             self.init_temp = 0.01
         else:
             self.init_temp = init_temp

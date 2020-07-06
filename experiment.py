@@ -22,9 +22,9 @@ class SpinLattice(util.Graph):
             # TODO: cut-off or no cut-off?
             # do not create edges corresponding to interactions close to 0
             # strength = math.floor(interaction_fn(dist))
-            # if strength > 0:
             strength = interaction_fn(dist)
-            self.add_edge(spin1, spin2, strength)
+            if strength > 0:
+                self.add_edge(spin1, spin2, strength)
 
 def power_decay_fn(radius, alpha=6.0):
     def fn(dist):
