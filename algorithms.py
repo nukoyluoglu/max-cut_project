@@ -5,7 +5,7 @@ import copy
 MAX_NUM_ITER_COOLING = 10000
 NO_CHANGE_TRESHOLD_COOLING = 5
 MAX_NUM_ITER_EQUILIBRIUM = 1000
-EQUILIBRIUM_TRESHOLD = 100
+EQUILIBRIUM_TRESHOLD = 1000
 
 class MaxCutAlgorithm:
 
@@ -18,56 +18,50 @@ class SimulatedAnnealing(MaxCutAlgorithm):
         self.cool_rate = None
         self.temp_history = []
         self.ensemble = ensemble
+        self.max_num_iter_equilibrium = MAX_NUM_ITER_EQUILIBRIUM
+        self.max_num_iter_cooling = MAX_NUM_ITER_COOLING
+        self.no_change_treshold_cooling = NO_CHANGE_TRESHOLD_COOLING
 
     def solve(self, problem):
         num_temp_no_change = 0
         self.temp_history = [self.init_temp]
-        for k in range(MAX_NUM_ITER_COOLING):
+        for k in range(self.max_num_iter_cooling):
             temp = self.init_temp * np.power(self.cool_rate, k)
             energy_change_at_temp = 0
-            num_equil = 0
-            for _ in range(MAX_NUM_ITER_EQUILIBRIUM):
-                if self.ensemble > 1:
-                    v_ensemble = [problem.get_vertices()[i] for i in np.random.choice(problem.get_num_vertices(), self.ensemble)]
-                    delta = problem.get_switch_ensemble_energy_change(v_ensemble)
-                else:
-                    v = problem.get_vertices()[np.random.choice(problem.get_num_vertices())]
-                    delta = problem.get_switch_energy_change(v)
+            # num_equil = 0
+            for _ in range(self.max_num_iter_equilibrium):
+                # if self.ensemble > 1:
+                #     v_ensemble = [problem.get_vertices()[i] for i in np.random.choice(problem.get_num_vertices(), self.ensemble)]
+                #     delta = problem.get_switch_ensemble_energy_change(v_ensemble)
+                # else:
+                v = problem.get_vertices()[np.random.choice(problem.get_num_vertices())]
+                delta = problem.get_switch_energy_change(v)
                 ratio = delta / temp if temp >= 1e-300 else float('inf')
                 if delta <= 0 or np.random.uniform() <= np.exp(- ratio):
-                    if self.ensemble > 1:
-                        problem.switch_ensemble(v_ensemble)
-                    else:
-                        problem.switch(v)
+                    # if self.ensemble > 1:
+                    #     problem.switch_ensemble(v_ensemble)
+                    # else:
+                    problem.switch(v)
                     energy_change_at_temp += delta
-                    num_equil = 0
-                else:
-                    num_equil += 1
+                    # num_equil = 0
+                # else:
+                #     num_equil += 1
                 problem.get_partition_history().append(copy.copy(problem.get_partition()))
                 problem.get_objective_history().append(copy.copy(problem.get_objective()))
                 self.temp_history.append(temp)
-                if num_equil >= EQUILIBRIUM_TRESHOLD:
-                    break          
+                # if num_equil >= EQUILIBRIUM_TRESHOLD:
+                #     break          
             if energy_change_at_temp == 0:
                 num_temp_no_change += 1
             else:
                 num_temp_no_change = 0
-            if num_temp_no_change >= NO_CHANGE_TRESHOLD_COOLING:
+            if num_temp_no_change >= self.no_change_treshold_cooling:
                 break
             
 
     def set_cooling_schedule(self, init_temp, cool_rate):
-        if init_temp == 0:
-            # TODO: INIT TEMP 0 PROBLEM
-            self.init_temp = 0.01
-        else:
-            self.init_temp = init_temp
+        self.init_temp = init_temp
         self.cool_rate = cool_rate
-        # if acceptance != 0:
-        #     self.initial_temp = 1.0 / np.log(1.0 / acceptance)
-        # else:
-        #     self.initial_temp = 0.01
-        # self.cooling = cooling
 
     def get_temp_history(self):
         return self.temp_history

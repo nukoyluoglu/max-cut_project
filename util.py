@@ -3,6 +3,7 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from plotly import graph_objects as go, express as px
+from collections import defaultdict
 import csv
 
 class Vertex(object):
@@ -83,18 +84,27 @@ def euclidean_dist_2D(loc1, loc2, spacing):
     coord2 = spacing * np.array(loc2)
     return np.linalg.norm(coord1 - coord2)
 
-def plot_interaction(interaction_fn, radius, dim_x, dim_y):
+def plot_interaction(interaction_fn, radius, lattice_X, lattice_Y, interaction_shape):
     plt.figure()
-    dist = np.arange(0, euclidean_dist_2D((0, 0), (dim_x, dim_y), 1), 0.01)
+    dist = np.arange(0, euclidean_dist_2D((0, 0), (lattice_X, lattice_Y), 1), 0.01)
     interaction_strength = [interaction_fn(r) for r in dist]
     plt.plot(dist, interaction_strength)
     plt.xlabel('Distance - r')
     plt.ylabel('Interaction Strength - J')
     plt.axvline(radius, linestyle='dashed', color='g')
-    plt.savefig('interaction_function_radius_{}.png'.format(radius))
+    plt.savefig('{}_{}x{}/interaction_function_radius_{}.png'.format(interaction_shape, lattice_X, lattice_Y, radius))
     plt.close()
 
-def plot_runtimes_steps_vs_radius(radii, runtimes, steps):
+def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, lattice_Y, interaction_shape):
+    radii = []
+    runtimes = []
+    steps = []
+    # annotations = []
+    for radius, solution in algorithm_performance_by_radius.items():
+        radii.append(radius)
+        runtimes.append(solution['runtime'])
+        steps.append(solution['step'])
+        # annotations.append(((radius, solution['step']), solution['energy'], solution['params']))
     fig, ax1 = plt.subplots()
     color = 'tab:red'
     ax1.set_xlabel('Radius - r')
@@ -105,10 +115,66 @@ def plot_runtimes_steps_vs_radius(radii, runtimes, steps):
     color = 'tab:blue'
     ax2.set_ylabel('Steps', color=color)
     ax2.plot(radii, steps, color=color)
+    # for point in annotations:
+    #     coord, energy, params = point
+    #     label = 'energy: {}, init_temp: {}, cool_rate: {}'.format(energy, params['init_temp'], params['cool_rate'])
+    #     ax2.annotate(label, xy=coord, xycoords='figure points')
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
-    plt.savefig('runtimes_steps_vs_radius.png')
+    plt.savefig('{}_{}x{}/runtimes_steps_vs_radius.png'.format(interaction_shape, lattice_X, lattice_Y))
     plt.close()
+
+def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, lattice_X, lattice_Y, interaction_shape):
+    runtimes_steps_vs_system_size_by_radius = defaultdict(dict)
+    for system_size, algorithm_performance_by_radius in algorithm_performance_by_system.items():
+        for radius, solution in algorithm_performance_by_radius.items():
+            runtimes_steps_vs_system_size_by_radius[radius][system_size] = solution
+    for radius, runtimes_steps_vs_system_size in runtimes_steps_vs_system_size_by_radius.items():
+        system_sizes = []
+        runtimes = []
+        steps = []
+        # annotations = []
+        for system_size, solution in runtimes_steps_vs_system_size.items():
+            system_sizes.append(system_size)
+            runtimes.append(solution['runtime'])
+            steps.append(solution['step'])
+            # annotations.append(((system_size, solution['step']), solution['energy'], solution['params']))
+        fig, ax1 = plt.subplots()
+        color = 'tab:red'
+        ax1.set_xlabel('Radius - r')
+        ax1.set_ylabel('Runtime (s)', color=color)
+        ax1.plot(system_sizes, runtimes, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+        ax2 = ax1.twinx()
+        color = 'tab:blue'
+        ax2.set_ylabel('Steps', color=color)
+        ax2.plot(system_sizes, steps, color=color)
+        # for point in annotations:
+        #     coord, energy, params = point
+        #     label = 'energy: {}, init_temp: {}, cool_rate: {}'.format(energy, params['init_temp'], params['cool_rate'])
+        #     ax2.annotate(label, xy=coord, xycoords='figure points')
+        ax2.tick_params(axis='y', labelcolor=color)
+        fig.tight_layout()
+        plt.savefig('runtimes_steps_vs_system_size_radius_{}.png'.format(radius))
+        plt.close()
+
+def plot_num_ground_states_vs_system_size(num_ground_states_by_system, lattice_X, lattice_Y, interaction_shape):
+    num_ground_states_vs_system_size_by_radius = defaultdict(dict)
+    for system_size, num_ground_states_by_radius in num_ground_states_by_system.items():
+        for radius, num_ground_states in num_ground_states_by_radius.items():
+            num_ground_states_vs_system_size_by_radius[radius][system_size] = num_ground_states
+    for radius, num_ground_states_vs_system_size in num_ground_states_vs_system_size_by_radius.items():
+        system_sizes = []
+        nums_ground_states = []
+        for system_size, num_ground_states in num_ground_states_vs_system_size:
+            system_sizes.append(system_size)
+            nums_ground_states.append(num_ground_states)
+        plt.figure()
+        plt.plot(system_sizes, nums_ground_states)
+        plt.xlabel('System Size - L')
+        plt.ylabel('Number of Ground States')
+        plt.savefig('num_ground_states_vs_system_size_radius_{}.png'.format(radius))
+        plt.close()
 
 def get_spin_lattice(spins, lattice_X, lattice_Y):
     lattice = np.zeros((lattice_X, lattice_Y))
@@ -168,7 +234,7 @@ def animation_layout(spin_history):
     return layout
 
 
-def plot_spin_lattice(spin_history, lattice_X, lattice_Y, radius, filename=None, fancy=False):
+def plot_spin_lattice(spin_history, radius, lattice_X, lattice_Y, interaction_shape, filename=None, fancy=False):
     # storage issue
     # TODO: plot 2 energies per temperature
     fig = plt.figure()
@@ -179,7 +245,7 @@ def plot_spin_lattice(spin_history, lattice_X, lattice_Y, radius, filename=None,
         return im
     ani = animation.FuncAnimation(fig, update_fig, frames=range(len(spin_history)))
     if not filename:
-        filename = 'spin_lattice_radius_{}.gif'.format(radius)
+        filename = '{}_{}x{}/spin_lattice_radius_{}.gif'.format(interaction_shape, lattice_X, lattice_Y, radius)
     ani.save(filename, writer='imagemagick', fps=30)
 
     # spin_lattice_history = [get_spin_lattice_xyz(spins, lattice_X, lattice_Y) for spins in spin_history]
@@ -265,15 +331,15 @@ def get_atoms(spins):
         y.append(atom[1])
     return np.array(x), np.array(y), z
 
-def plot_energy_in_time(energy_history, radius):
+def plot_energy_in_time(energy_history, radius, lattice_X, lattice_Y, interaction_shape):
     plt.figure()
     plt.plot(range(len(energy_history)), energy_history)
     plt.xlabel('Time Steps - t')
     plt.ylabel('Energy - E')
-    plt.savefig('energy_in_time_radius_{}.png'.format(radius))
+    plt.savefig('{}_{}x{}/energy_in_time_radius_{}.png'.format(interaction_shape, lattice_X, lattice_Y, radius))
     plt.close()
 
-def plot_energy_temp_in_time(energy_history, temp_history, radius):
+def plot_energy_temp_in_time(energy_history, temp_history, radius, lattice_X, lattice_Y, interaction_shape):
     fig, ax1 = plt.subplots()
     color = 'tab:red'
     ax1.set_xlabel('Time Steps - t')
@@ -286,13 +352,13 @@ def plot_energy_temp_in_time(energy_history, temp_history, radius):
     ax2.plot(range(len(temp_history)), temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
-    plt.savefig('energy_temp_in_time_radius_{}.png'.format(radius))
+    plt.savefig('{}_{}x{}/energy_temp_in_time_radius_{}.png'.format(interaction_shape, lattice_X, lattice_Y, radius))
     plt.close()
 
-def plot_params_steps(data, y_axis, x_axis, data_title, y_axis_title, x_axis_title, radius, best_params):
-    title = 'parameter selection (radius = {}, best initial temperature = {}, best cooling rate = {}'.format(radius, best_params['init_temp'], best_params['cool_rate'])
-    fig = px.imshow(data, title=title, labels=dict(x=x_axis_title, y=y_axis_title, color=data_title), x=x_axis, y=y_axis, color_continuous_scale='RdBu_r')
-    fig.write_html('param_heatmap_radius_{}.html'.format(radius))
+# def plot_params_steps(data, y_axis, x_axis, data_title, y_axis_title, x_axis_title, radius, best_params):
+#     title = 'parameter selection (radius = {}, best initial temperature = {}, best cooling rate = {}'.format(radius, best_params['init_temp'], best_params['cool_rate'])
+#     fig = px.imshow(data, title=title, labels=dict(x=x_axis_title, y=y_axis_title, color=data_title), x=x_axis, y=y_axis, color_continuous_scale='RdBu_r')
+#     fig.write_html('param_heatmap_radius_{}.html'.format(radius))
 
 def boltzmann_dist(all_states_energy, temp):
     num = 0.0
@@ -303,24 +369,29 @@ def boltzmann_dist(all_states_energy, temp):
         denom += factor
     return num / denom
 
-def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, init_temp, best_params, radius, lattice_x, lattice_y, exact_best_energy=None):
+def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, init_temp, best_params, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=None):
     plt.figure()
     x_right_lim = 0
     for cool_rate, ave_energy_vs_temp in ave_energy_vs_temp_by_params.items():
         inverse_temps = []
         ave_energies = []
-        for temp, ave_energy in ave_energy_vs_temp.items():
+        errors = []
+        for temp, (ave_energy, error) in ave_energy_vs_temp.items():
+        #sorted(ave_energy_vs_temp.items(), reverse=True):
             inverse_temps.append(1.0 / temp)
             ave_energies.append(ave_energy)
-        x_right_lim = max(inverse_temps[-5], x_right_lim)
+            errors.append(error)
+        temp_cutoff_index = - min(5, len(inverse_temps))
+        x_right_lim = max(inverse_temps[temp_cutoff_index], x_right_lim)
         label = 'T_0 = {}, r = {}, T_f = {}'.format(init_temp, round(cool_rate, 1), np.format_float_scientific(1.0 / inverse_temps[-1], precision=1))
         if init_temp == best_params['init_temp'] and cool_rate == best_params['cool_rate']:
             label += ', optimal'
-        plt.plot(inverse_temps, ave_energies, label=label)
+        # plt.plot(inverse_temps, ave_energies, label=label)
+        plt.errorbar(inverse_temps, ave_energies, yerr=errors, label=label)
     if exact_best_energy:
         plt.axhline(exact_best_energy, label='brute force')
         all_energies = []
-        r = csv.reader(open('step_fn_exact_sols_{}x{}/energies_radius_{}.csv'.format(lattice_x, lattice_y, radius), 'r'))
+        r = csv.reader(open('{}_exact_sols_{}x{}/energies_radius_{}.csv'.format(interaction_shape, lattice_X, lattice_Y, radius), 'r'))
         next(r)
         for row in r:
             all_energies.append(float(row[0]))
@@ -331,7 +402,7 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, init_temp, best_par
     plt.xlim(right=x_right_lim)
     plt.xlabel('1 / Temperature - 1 / T')
     plt.ylabel('Energy - E')
-    plt.savefig('param_energy_vs_temp_radius_{}_T0_{}.png'.format(radius, init_temp))
+    plt.savefig('{}_{}x{}/param_energy_vs_temp_radius_{}_T0_{}.png'.format(interaction_shape, lattice_X, lattice_Y, radius, init_temp))
     plt.close()
 
 
