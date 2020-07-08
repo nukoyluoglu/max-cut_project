@@ -1,8 +1,10 @@
+import sys
 import experiment
 import problem
 import algorithms
 import timeit
 import util
+import collections
 import numpy as np
 import copy
 import csv
@@ -16,73 +18,40 @@ def initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=1.0):
     setup.turn_on_interactions(interaction_fn(radius))
     return problem.MaxCutProblem(setup)
 
-def run(algorithm, interaction_fn, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=None, plot=False, fill=1.0):
-    if plot:
-        # plot of radius vs. interaction strength
-        util.plot_interaction(interaction_fn(radius), radius, lattice_X, lattice_Y, interaction_shape)
-    partition_history_trials = []
-    energy_history_trials = []
-    temp_history_trials = []
-    runtime_trials = []
-    step_trials = []
-    best_trial = 0
-    best_energy = 0
-    if exact_best_energy:
-        best_energy = exact_best_energy
-    for i in range(NUM_PERFORMANCE_TRIALS):
-        prob = initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=fill)
-        myGlobals = globals()
-        myGlobals.update({'algorithm': algorithm, 'prob': prob})
-        runtime = timeit.timeit(stmt='algorithm.solve(prob)', number=1, globals=myGlobals)
-        partition_history_trials.append(copy.deepcopy(prob.get_partition_history()))
-        energy_history_trials.append(copy.deepcopy(prob.get_energy_history()))
-        temp_history_trials.append(copy.deepcopy(algorithm.get_temp_history()))
-        runtime_trials.append(runtime)
-        step_trials.append(len(algorithm.get_temp_history()))
-        if not exact_best_energy and prob.get_energy() < best_energy:
-            best_trial = i
-            best_energy = prob.get_energy()
-        elif exact_best_energy and prob.get_energy() == best_energy:
-            best_trial = i
-        elif exact_best_energy and prob.get_energy() < best_energy:
-            raise RuntimeError("Energy cannot be lower than exact minimum energy")
-    if plot: # display plot for best trial only
-        # sample visualization of spin dynamics
-        util.plot_spin_lattice(partition_history_trials[best_trial], radius, lattice_X, lattice_Y, interaction_shape)
-        # sample plot of energy vs. time
-        # util.plot_energy_in_time(energy_history_trials[best_trial], radius)
-        util.plot_energy_temp_in_time(energy_history_trials[best_trial], temp_history_trials[best_trial], radius, lattice_X, lattice_Y, interaction_shape)
-    return {'partition_histories': partition_history_trials, 'energy_histories': energy_history_trials, 'runtimes': runtime_trials, 'temp_histories': temp_history_trials, 'steps': step_trials}
-
 def run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y, init_temp, cool_rate, fill=1.0):
     ave_runtime = 0
     ave_step = 0
     ave_final_energy = 0
-    best_step = 0
     best_final_energy = 0
-    best_prob = None
-    best_temp_history = None
+    # best_prob = None
     ave_energy_vs_temp = {}
+    ave_energy_hist = {}
+    ave_temp_hist = {}
+    sample_best_partition_hist = None
     for _ in range(NUM_PARAM_TRIALS):
         prob = initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=fill)
         algorithm.set_cooling_schedule(init_temp, cool_rate)
         myGlobals = globals()
         myGlobals.update({'algorithm': algorithm, 'prob': prob})
         runtime = timeit.timeit(stmt='algorithm.solve(prob)', number=1, globals=myGlobals)
+        # debug jumps
+        # if prob.objective < 34.446:
+        #     print('LOCALMIN')
+        #     for t in range(999, len(prob.objective_history), 1000):
+        #         print(prob.get_objective_history()[t], algorithm.get_temp_history()[t])
+        #     util.plot_temporary(prob.get_energy_history(), algorithm.get_temp_history(), radius, lattice_X, lattice_Y, interaction_shape, init_temp, cool_rate, _)
         step = len(algorithm.get_temp_history())
+        # TODO: look at min energy rather than final energy (if it touched min once it's enough)
+        # TODO: random coupling
         final_energy = prob.get_energy()
         energy_hist = prob.get_energy_history()
         temp_hist = algorithm.get_temp_history()
         ave_runtime += runtime
         ave_step += step
         ave_final_energy += final_energy
-        if final_energy < best_final_energy or (final_energy == best_final_energy and step < best_step):
+        if final_energy < best_final_energy:
             best_final_energy = final_energy
-            best_step = step
-            best_prob = copy.copy(prob)
-            best_temp_history = copy.copy(temp_hist)
-        elif best_prob == prob:
-            raise RuntimeError('Best solution must be preserved throughout trials')
+            sample_best_partition_hist = prob.get_partition_history()
         if len(temp_hist) != len(energy_hist):
             raise RuntimeError('Length of temperature and energy histories must match')
         temp_start = 0
@@ -92,52 +61,63 @@ def run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y
                 temp_start = t
             if t - temp_start < algorithm.max_num_iter_equilibrium / 2: # consider second half at a temperature as equilibrium
                 ave_energy_vs_temp.setdefault(temp, []).append(energy_hist[t])
+            ave_energy_hist.setdefault(t, []).append(energy_hist[t])
+            ave_temp_hist.setdefault(t, []).append(temp)
     for temp in ave_energy_vs_temp.keys():
         energies_at_temp = ave_energy_vs_temp[temp]
         ave_energy_vs_temp[temp] = (np.mean(energies_at_temp), np.std(energies_at_temp))
+    for t in ave_energy_hist.keys():
+        energies_at_t = ave_energy_hist[t]
+        ave_energy_hist[t] = np.mean(energies_at_t)
+        temps_at_t = ave_temp_hist[t]
+        ave_temp_hist[t] = np.mean(temps_at_t)
     ave_final_energy /= NUM_PARAM_TRIALS
     ave_step /= NUM_PARAM_TRIALS
     ave_runtime /= NUM_PARAM_TRIALS
-    return {'ave_final_energy': ave_final_energy, 'ave_runtime': ave_runtime, 'ave_step': ave_step, 'best_final_energy': best_final_energy, 'ave_energy_vs_temp': ave_energy_vs_temp, 'best_partition_history': best_prob.get_partition_history(), 'best_energy_history': best_prob.get_energy_history(), 'best_temp_history': best_temp_history}
+    # plot of energy vs. time
+    util.plot_params_energy_temp_vs_step(ave_energy_hist, ave_temp_hist, radius, lattice_X, lattice_Y, interaction_shape, init_temp, cool_rate)
+    return {'ave_final_energy': ave_final_energy, 'ave_runtime': ave_runtime, 'ave_step': ave_step, 'best_final_energy': best_final_energy, 'ave_energy_vs_temp': ave_energy_vs_temp, 'ave_energy_hist': ave_energy_hist, 'ave_temp_hist': ave_temp_hist, 'sample_best_partition_hist': sample_best_partition_hist}
 
 def search_params(algorithm_name, interaction_fn, radius, lattice_X, lattice_Y, interaction_shape, ensemble=1, exact_best_energy=None, fill=1.0, plot=True):
     if algorithm_name == 'simulated annealing':
         algorithm = algorithms.SimulatedAnnealing(ensemble=ensemble)
-        init_temps = np.array([0.1, 2.0, 4.0, 6.0, 8.0, 10.0])
-        cool_rates = np.linspace(0.1, 0.9, 9)
-        best = {'energy': 0, 'step': float('inf'), 'runtime': float('inf'), 'params': {'init_temp': None, 'cool_rate': None}, 'partition_history': [], 'energy_history': [], 'temp_history': []}
-        best_solution = None
-        ave_energy_vs_temp_by_init_temp = {}
+        # init_temps = np.array([0.1, 2.0, 4.0, 6.0, 8.0, 10.0])
+        # cool_rates = np.linspace(0.1, 0.9, 9)
+        init_temps = np.array([2.0])
+        cool_rates = np.array([0.6])
+        best_solution = {}
+        best_params = {'init_temp': None, 'cool_rate': None}
+        ave_energy_vs_temp_by_params = collections.defaultdict(dict)
         for i in range(len(init_temps)): # consider acceptances starting from optimal value for previous radius
-            ave_energy_vs_temp_by_cool_rate = {}
             for j in range(len(cool_rates)):
                 param_solution = run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y, init_temps[i], cool_rates[j], fill=fill)
-                ave_energy_vs_temp_by_cool_rate[cool_rates[j]] = param_solution['ave_energy_vs_temp']
-                if param_solution['best_final_energy'] < best['energy'] or (param_solution['best_final_energy'] == best['energy'] and param_solution['ave_step'] < best['step']):
-                    best['energy'] = param_solution['best_final_energy']
+                ave_energy_vs_temp_by_params[init_temps[i]][cool_rates[j]] = param_solution['ave_energy_vs_temp']
+                if not best_solution or param_solution['best_final_energy'] < best_solution['best_final_energy'] or (param_solution['best_final_energy'] == best_solution['best_final_energy'] and param_solution['ave_step'] < best_solution['ave_step']):
                     best_solution = param_solution
-                    best['step'] = best_solution['ave_step']
-                    best['runtime'] = best_solution['ave_runtime']
-                    best['params']['init_temp'] = init_temps[i]
-                    best['params']['cool_rate'] = cool_rates[j]
-                    best['partition_history'] = best_solution['best_partition_history']
-                    best['energy_history'] = best_solution['best_energy_history']
-                    best['temp_history'] = best_solution['best_temp_history']
+                    best_params['init_temp'] = init_temps[i]
+                    best_params['cool_rate'] = cool_rates[j]
                 elif best_solution == param_solution:
                     raise RuntimeError('Best solution must be preserved throughout trials')
-                if exact_best_energy and best['energy'] < exact_best_energy:
-                    raise RuntimeError('Energy cannot be lower than exact minimum energy')
-            ave_energy_vs_temp_by_init_temp[init_temps[i]] = ave_energy_vs_temp_by_cool_rate
+                # if exact_best_energy and best_solution['best_final_energy'] < exact_best_energy:
+                #     raise RuntimeError('Energy cannot be lower than exact minimum energy')
         if plot:
-            for init_temp, ave_energy_vs_temp_by_cool_rate in ave_energy_vs_temp_by_init_temp.items():
-                util.plot_params_energy_vs_temp(ave_energy_vs_temp_by_cool_rate, init_temp, best['params'], radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=exact_best_energy)
+            util.plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=exact_best_energy)
+            # print(ave_energy_vs_temp_by_params[4.0][0.1])
+            # print(ave_energy_vs_temp_by_params[4.0][0.5])
+            util.plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, best_solution['best_final_energy'], exact_best_energy=exact_best_energy)
             # sample visualization of spin dynamics for best params
-            util.plot_spin_lattice([best['partition_history'][-1]], radius, lattice_X, lattice_Y, interaction_shape)
-            # sample plot of energy vs. time for best params
-            util.plot_energy_temp_in_time(best['energy_history'], best['temp_history'], radius, lattice_X, lattice_Y, interaction_shape)
-        return copy.copy(best)
+            util.plot_spin_lattice([best_solution['sample_best_partition_hist'][-1]], radius, lattice_X, lattice_Y, interaction_shape)
+            # # sample plot of energy vs. time for best params
+            # util.plot_energy_temp_in_time(best['energy_history'], best['temp_history'], radius, lattice_X, lattice_Y, interaction_shape)
+        return best_solution, best_params
 
-def get_exact_solutions(interaction_fn, lattice_X, lattice_Y, interaction_shape, fill=1.0):
+def get_exact_solutions(lattice_X, lattice_Y, interaction_shape, fill=1.0):
+    if interaction_shape == 'step_fn':
+        interaction_fn = experiment.step_fn
+    elif interaction_shape == 'power_decay_fn':
+        interaction_fn = experiment.power_decay_fn
+    else:
+        interaction_fn = experiment.random
     w1 = csv.writer(open('{}_exact_sols_{}x{}/optimal_sols.csv'.format(interaction_shape, lattice_X, lattice_Y), 'w'))
     w1.writerow(['radius', 'min energy', '# ground states', '# states'])
     for radius in np.arange(1, util.euclidean_dist_2D((0, 0), (lattice_X, lattice_Y), 1)):
@@ -151,12 +131,20 @@ def get_exact_solutions(interaction_fn, lattice_X, lattice_Y, interaction_shape,
         for energy in all_partition_energies:
             w2.writerow([energy])
 
-def algorithm_performance(algorithm_name, interaction_fn, lattice_X, lattice_Y, interaction_shape, fill=1.0, ensemble=1, brute_force_solution=None, plot=True):
+def algorithm_performance(algorithm_name, lattice_X, lattice_Y, interaction_shape, fill=1.0, ensemble=1, brute_force_solution=None, plot=True):
+    if interaction_shape == 'step_fn':
+        interaction_fn = experiment.step_fn
+    elif interaction_shape == 'power_decay_fn':
+        interaction_fn = experiment.power_decay_fn
+    else:
+        interaction_fn = experiment.random
     algorithm_performance_by_radius = {}
     # radii = []
     # runtimes = []
     # steps = []
     for radius in np.arange(1, util.euclidean_dist_2D((0, 0), (lattice_X, lattice_Y), 1)):
+        if radius != 2.0:
+            continue
         if plot:
             # plot of radius vs. interaction strength
             util.plot_interaction(interaction_fn(radius), radius, lattice_X, lattice_Y, interaction_shape)
@@ -180,8 +168,7 @@ def algorithm_performance(algorithm_name, interaction_fn, lattice_X, lattice_Y, 
         # TODO: try ensemble switch
     return algorithm_performance_by_radius
 
-def main(plot=True):
-    interaction_shape = 'step_fn'
+def main(interaction_shape='step_fn', plot=True):
     algorithm_performance_by_system = {}
     num_ground_states_by_system = {}
     for system_size in range(3, 6):
@@ -190,7 +177,7 @@ def main(plot=True):
         exact_min_energy_by_radius = None
         if system_size < 3:
             # brute force, step function
-            get_exact_solutions(experiment.step_fn, lattice_X, lattice_Y, interaction_shape)
+            get_exact_solutions(lattice_X, lattice_Y, interaction_shape)
         if system_size < 5:
             exact_min_energy_by_radius = {}
             num_ground_states_by_radius = {}
@@ -201,16 +188,20 @@ def main(plot=True):
                 exact_min_energy_by_radius[radius] = float(row[1])
                 num_ground_states_by_radius[radius] = float(row[2])
             num_ground_states_by_system[system_size] = num_ground_states_by_radius
-        # simulated annealing, step function
-        algorithm_performance_by_radius = algorithm_performance('simulated annealing', experiment.step_fn, lattice_X, lattice_Y, interaction_shape, ensemble=1, brute_force_solution=exact_min_energy_by_radius)
-        algorithm_performance_by_system[system_size] = algorithm_performance_by_radius
+        if system_size == 3:
+            # simulated annealing, step function
+            algorithm_performance_by_radius = algorithm_performance('simulated annealing', lattice_X, lattice_Y, interaction_shape, ensemble=1, brute_force_solution=exact_min_energy_by_radius)
+            algorithm_performance_by_system[system_size] = algorithm_performance_by_radius
     util.plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, lattice_X, lattice_Y, interaction_shape)
     if not num_ground_states_by_system:
         util.plot_num_ground_states_vs_system_size(num_ground_states_by_system, lattice_X, lattice_Y, interaction_shape)
+
 
     # get_exact_solutions(experiment.step_fn, 'step_fn_0.8_filled', fill=0.8)
     # since system is probabilistic, brute force is not accurate
     # algorithm_performance('simulated annealing', experiment.step_fn, 'step_fn_0.8_filled', brute_force=False, fill=0.8)
 
 if __name__ == '__main__':
-    main()
+    for i in range(1, len(sys.argv)):    
+        interaction_shape = str(sys.argv[i])
+        main(interaction_shape)

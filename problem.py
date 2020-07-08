@@ -44,9 +44,9 @@ class MaxCutProblem(util.Graph):
         for n in self.get_neighbors(v):
             w = self.get_edge(v, n)
             if self.partition[v] == self.partition[n]:
-                self.switch_change[n] += 2 * w
+                self.switch_change[n] += 2.0 * w
             else:
-                self.switch_change[n] -= 2 * w
+                self.switch_change[n] -= 2.0 * w
 
     def switch_ensemble(self, v_ensemble):
         for v in v_ensemble:
@@ -78,7 +78,7 @@ class MaxCutProblem(util.Graph):
         return - self.switch_change[v]
 
     def get_switch_ensemble_objective_change(self, v_ensemble):
-        delta = 0
+        delta = 0.0
         for v in v_ensemble:
             delta += self.switch_change[v]
             for n in self.get_neighbors(v):

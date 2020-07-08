@@ -50,7 +50,7 @@ class SimulatedAnnealing(MaxCutAlgorithm):
                 problem.get_objective_history().append(copy.copy(problem.get_objective()))
                 self.temp_history.append(temp)
                 # if num_equil >= EQUILIBRIUM_TRESHOLD:
-                #     break          
+                #     break         
             if energy_change_at_temp == 0:
                 num_temp_no_change += 1
             else:
@@ -58,7 +58,6 @@ class SimulatedAnnealing(MaxCutAlgorithm):
             if num_temp_no_change >= self.no_change_treshold_cooling:
                 break
             
-
     def set_cooling_schedule(self, init_temp, cool_rate):
         self.init_temp = init_temp
         self.cool_rate = cool_rate
