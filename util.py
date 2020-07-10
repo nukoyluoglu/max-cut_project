@@ -5,6 +5,7 @@ import matplotlib.animation as animation
 from plotly import graph_objects as go, express as px
 from collections import defaultdict
 import csv
+from celluloid import Camera
 
 class Vertex(object):
 
@@ -99,12 +100,12 @@ def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, la
     radii = []
     runtimes = []
     steps = []
-    # annotations = []
+    col_info = {}
     for radius, (solution, params) in algorithm_performance_by_radius.items():
         radii.append(radius)
         runtimes.append(solution['ave_runtime'])
         steps.append(solution['ave_step'])
-        # annotations.append(((radius, solution['step']), solution['energy'], solution['params']))
+        col_info[radius] = 'radius = {}\nE_f = {}\nT_0 = {}, r = {}'.format(radius, round(solution['ave_final_energy'], 1), params['init_temp'], params['cool_rate'])
     fig, ax1 = plt.subplots()
     color = 'tab:red'
     ax1.set_xlabel('Radius - r')
@@ -112,21 +113,20 @@ def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, la
     ax1.plot(radii, runtimes, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax1.set_ylim(bottom=0)
+    ax1.set_xticks(list(col_info.keys()))
+    ax1.set_xticklabels(list(col_info.values()))
     ax2 = ax1.twinx()
     color = 'tab:blue'
     ax2.set_ylabel('Steps', color=color)
     ax2.plot(radii, steps, color=color)
-    # for point in annotations:
-    #     coord, energy, params = point
-    #     label = 'energy: {}, init_temp: {}, cool_rate: {}'.format(energy, params['init_temp'], params['cool_rate'])
-    #     ax2.annotate(label, xy=coord, xycoords='figure points')
     ax2.tick_params(axis='y', labelcolor=color)
     ax2.set_ylim(bottom=0)
-    fig.tight_layout()
+    fig.suptitle('L = {}, {}'.format(lattice_X, interaction_shape))
+    plt.tight_layout()
     plt.savefig('{}_{}x{}/runtimes_steps_vs_radius.png'.format(interaction_shape, lattice_X, lattice_Y))
     plt.close()
 
-def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, lattice_X, lattice_Y, interaction_shape):
+def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interaction_shape):
     runtimes_steps_vs_system_size_by_radius = defaultdict(dict)
     for system_size, algorithm_performance_by_radius in algorithm_performance_by_system.items():
         for radius, solution in algorithm_performance_by_radius.items():
@@ -135,12 +135,12 @@ def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, lattice_
         system_sizes = []
         runtimes = []
         steps = []
-        # annotations = []
+        col_info = {}
         for system_size, (solution, params) in runtimes_steps_vs_system_size.items():
             system_sizes.append(system_size)
             runtimes.append(solution['ave_runtime'])
             steps.append(solution['ave_step'])
-            # annotations.append(((system_size, solution['step']), solution['energy'], solution['params']))
+            col_info[system_size] = 'L = {}\nE_f = {}\nT_0 = {}, r = {}'.format(system_size, round(solution['ave_final_energy'], 1), params['init_temp'], params['cool_rate'])
         fig, ax1 = plt.subplots()
         color = 'tab:red'
         ax1.set_xlabel('System Size - L')
@@ -152,17 +152,15 @@ def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, lattice_
         color = 'tab:blue'
         ax2.set_ylabel('Steps', color=color)
         ax2.plot(system_sizes, steps, color=color)
-        # for point in annotations:
-        #     coord, energy, params = point
-        #     label = 'energy: {}, init_temp: {}, cool_rate: {}'.format(energy, params['init_temp'], params['cool_rate'])
-        #     ax2.annotate(label, xy=coord, xycoords='figure points')
         ax2.tick_params(axis='y', labelcolor=color)
         ax2.set_ylim(bottom=0)
-        fig.tight_layout()
+        plt.xticks(list(col_info.keys()), list(col_info.values()))
+        fig.suptitle('{}, radius = {}'.format(interaction_shape, radius))
+        plt.tight_layout()
         plt.savefig('runtimes_steps_vs_system_size_{}_radius_{}.png'.format(interaction_shape, radius))
         plt.close()
 
-def plot_num_ground_states_vs_system_size(num_ground_states_by_system, lattice_X, lattice_Y, interaction_shape):
+def plot_num_ground_states_vs_system_size(num_ground_states_by_system, interaction_shape):
     num_ground_states_vs_system_size_by_radius = defaultdict(dict)
     for system_size, num_ground_states_by_radius in num_ground_states_by_system.items():
         for radius, num_ground_states in num_ground_states_by_radius.items():
@@ -170,13 +168,14 @@ def plot_num_ground_states_vs_system_size(num_ground_states_by_system, lattice_X
     for radius, num_ground_states_vs_system_size in num_ground_states_vs_system_size_by_radius.items():
         system_sizes = []
         nums_ground_states = []
-        for system_size, num_ground_states in num_ground_states_vs_system_size:
+        for system_size, num_ground_states in num_ground_states_vs_system_size.items():
             system_sizes.append(system_size)
             nums_ground_states.append(num_ground_states)
         plt.figure()
         plt.plot(system_sizes, nums_ground_states)
         plt.xlabel('System Size - L')
         plt.ylabel('Number of Ground States')
+        plt.title('{}, radius = {}'.format(interaction_shape, radius))
         plt.savefig('num_ground_states_vs_system_size_{}_radius_{}.png'.format(interaction_shape,radius))
         plt.close()
 
@@ -195,6 +194,20 @@ def get_spin_lattice_xyz(spins, lattice_X, lattice_Y):
         else:
             z_data.append(0)
     return x_data.flatten(), y_data.flatten(), z_data
+
+def get_tri_spin_lattice(spins):
+    x_up = []
+    y_up = []
+    x_down = []
+    y_down = []
+    for atom, spin in spins.items():
+        if spin == 1:
+            x_up.append(atom[0])
+            y_up.append(atom[1])
+        else:
+            x_down.append(atom[0])
+            y_down.append(atom[1])
+    return np.array(x_up), np.array(y_up), np.array(x_down), np.array(y_down)
 
 def animation_layout(spin_history):
     layout=go.Layout(
@@ -238,20 +251,36 @@ def animation_layout(spin_history):
     return layout
 
 
-def plot_spin_lattice(spin_history, radius, lattice_X, lattice_Y, interaction_shape, filename=None, fancy=False):
-    # storage issue
-    # TODO: plot 2 energies per temperature
-    fig = plt.figure()
-    plt.title('{}x{}, {}, radius = {}'.format(lattice_X, lattice_Y, interaction_shape, radius))
-    im = plt.imshow(get_spin_lattice(spin_history[0], lattice_X, lattice_Y), cmap='bwr', animated=True)
-    def update_fig(t):
-        data = get_spin_lattice(spin_history[t], lattice_X, lattice_Y)
-        im.set_array(data)
-        return im
-    ani = animation.FuncAnimation(fig, update_fig, frames=range(len(spin_history)))
-    if not filename:
-        filename = '{}_{}x{}/spin_lattice_radius_{}.gif'.format(interaction_shape, lattice_X, lattice_Y, radius)
-    ani.save(filename, writer='imagemagick', fps=30)
+def plot_spin_lattice(spin_history, radius, lattice_X, lattice_Y, interaction_shape, filename=None, triangular=False, fancy=False):
+    if not triangular:
+        # storage issue
+        # TODO: plot 2 energies per temperature
+        fig = plt.figure()
+        plt.title('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, radius))
+        im = plt.imshow(get_spin_lattice(spin_history[0], lattice_X, lattice_Y), cmap='bwr', animated=True)
+        def update_fig(t):
+            data = get_spin_lattice(spin_history[t], lattice_X, lattice_Y)
+            im.set_array(data)
+            return im
+        ani = animation.FuncAnimation(fig, update_fig, frames=range(len(spin_history)))
+        if not filename:
+            filename = '{}_{}x{}/spin_lattice_radius_{}.gif'.format(interaction_shape, lattice_X, lattice_Y, radius)
+        else:
+            filename += '.gif'
+        ani.save(filename, writer='imagemagick', fps=30)
+    else:
+        fig = plt.figure()
+        plt.title('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, radius))
+        x_up, y_up, x_down, y_down = get_tri_spin_lattice(spin_history[0])
+        plt.plot(x_up, y_up, 'ro')
+        plt.plot(x_down, y_down, 'bo')
+        plt.gca().set_aspect('equal', adjustable='box')
+        if not filename:
+            filename = '{}_{}x{}/spin_lattice_radius_{}.png'.format(interaction_shape, lattice_X, lattice_Y, radius)
+        else:
+            filename += '.png'
+        plt.savefig(filename)
+        plt.close()
 
     # spin_lattice_history = [get_spin_lattice_xyz(spins, lattice_X, lattice_Y) for spins in spin_history]
     # x, y, z = spin_lattice_history[0]
@@ -364,7 +393,7 @@ def plot_params_energy_temp_vs_step(ave_energy_history, ave_temp_history, radius
     if len(ave_energy_history) != len(ave_temp_history):
         raise RuntimeError('Length of energy and temperature histories must match')
     fig, ax1 = plt.subplots()
-    plt.title('{}x{}, {}, radius = {}, T_0 = {}, r = {}'.format(lattice_X, lattice_Y, interaction_shape, radius, init_temp, cool_rate))
+    plt.title('L = {}, {}, radius = {}, T_0 = {}, r = {}'.format(lattice_X, interaction_shape, radius, init_temp, cool_rate))
     color = 'tab:red'
     ax1.set_xlabel('Time Steps - t')
     ax1.set_ylabel('Energy - E', color=color)
@@ -414,7 +443,7 @@ def boltzmann_dist(all_states_energy, temp):
 def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=None):
     for init_temp, ave_energy_vs_temp_by_cool_rate in ave_energy_vs_temp_by_params.items():
         plt.figure()
-        plt.title('{}x{}, {}, radius = {}'.format(lattice_X, lattice_Y, interaction_shape, radius))
+        plt.title('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, radius))
         # x_right_lim = 0
         for cool_rate, ave_energy_vs_temp in ave_energy_vs_temp_by_cool_rate.items():
             inverse_temps = []
@@ -429,7 +458,6 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius
             label = 'T_0 = {}, r = {}, T_f = {}'.format(init_temp, round(cool_rate, 1), np.format_float_scientific(1.0 / inverse_temps[-1], precision=1))
             if init_temp == best_params['init_temp'] and cool_rate == best_params['cool_rate']:
                 label += ', optimal'
-            # plt.plot(inverse_temps, ave_energies, label=label)
             p = plt.plot(inverse_temps, ave_energies, label=label)
             plt.errorbar(inverse_temps, ave_energies, yerr=errors, alpha=0.5, ecolor=p[-1].get_color())
         if exact_best_energy:
@@ -449,16 +477,17 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius
         plt.savefig('{}_{}x{}/param_energy_vs_temp_radius_{}_T0_{}.png'.format(interaction_shape, lattice_X, lattice_Y, radius, init_temp))
         plt.close()
 
-def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, best_energy, exact_best_energy=None):
-    vmin = exact_best_energy if exact_best_energy else best_energy
+def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=None):
     num_subplots = sum(len(n) for n in ave_energy_vs_temp_by_params.values())
     if exact_best_energy:
         num_subplots += 1
     fig, axs = plt.subplots(num_subplots, 1, sharex=True, gridspec_kw=dict(hspace=0))
-    fig.suptitle('{}x{}, {}, radius = {}'.format(lattice_X, lattice_Y, interaction_shape, radius))
-    param_index = 0
+    fig.suptitle('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, radius))
     x_min = float('inf')
     x_max = 0
+    h_min = exact_best_energy if exact_best_energy else float('inf')
+    h_max = np.float('-inf')
+    param_data = []
     for init_temp, ave_energy_vs_temp_by_cool_rate in ave_energy_vs_temp_by_params.items():
         for cool_rate, ave_energy_vs_temp in ave_energy_vs_temp_by_cool_rate.items():
             inverse_temps = []
@@ -470,19 +499,22 @@ def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params
                 errors.append(error)
                 x_min = min(1.0 / temp, x_min)
                 x_max = max(1.0 / temp, x_max)
-            # extent = [inverse_temps[0], inverse_temps[-1], 0, 1]
-            X, Y = np.meshgrid(inverse_temps, [0, 1])
-            heatmap = axs[param_index].pcolormesh(X, Y, np.array(ave_energies)[np.newaxis,:], vmin = vmin, vmax = 0, cmap="jet")
-            # im = axs[param_index].imshow(np.array(ave_energies)[np.newaxis,:], vmin = vmin, vmax = 0, cmap="jet", aspect="auto", extent=extent)
-            label = 'T_0 = {}, r = {}, T_f = {}'.format(init_temp, round(cool_rate, 1), np.format_float_scientific(1.0 / inverse_temps[-1], precision=1))
-            if init_temp == best_params['init_temp'] and cool_rate == best_params['cool_rate']:
-                label += ', optimal'
-            axs[param_index].set_ylabel(label, rotation='horizontal')
-            axs[param_index].set_xlabel('1 / Temperature - 1 / T')
-            axs[param_index].set_xscale('log')
-            axs[param_index].set_yticks([])
-            axs[param_index].set_xlim(x_min, x_max)
-            param_index += 1
+                h_min = min(ave_energy, h_min)
+                h_max = max(ave_energy, h_max)
+            param_data.append((inverse_temps, (init_temp, cool_rate), ave_energies))
+    for i in range(len(param_data)):
+        x, (T_0, r), h = param_data[i]
+        x_edges, y_edges = np.meshgrid(x, [0, 1])
+        heatmap = axs[i].pcolormesh(x_edges, y_edges, np.array(h)[np.newaxis,:], vmin = h_min, vmax = h_max, cmap="jet")
+        label = 'T_0 = {}, r = {}, T_f = {}'.format(T_0, round(r, 1), np.format_float_scientific(1.0 / x[-1], precision=1))
+        if T_0 == best_params['init_temp'] and r == best_params['cool_rate']:
+            label += ', optimal'
+        axs[i].set_ylabel(label, rotation='horizontal')
+        axs[i].set_xlabel('1 / Temperature - 1 / T')
+        axs[i].set_xscale('log')
+        axs[i].set_yticks([])
+        axs[i].set_xlim(x_min, x_max)
+    i = len(param_data)
     if exact_best_energy:
         all_energies = []
         r = csv.reader(open('{}_exact_sols_{}x{}/energies_radius_{}.csv'.format(interaction_shape, lattice_X, lattice_Y, radius), 'r'))
@@ -491,21 +523,13 @@ def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params
             all_energies.append(float(row[0]))
         inverse_temps = np.logspace(np.floor(np.log10(x_min)), np.ceil(np.log10(x_max)))
         exact_ave_energies = [boltzmann_dist(all_energies, 1.0 / inverse_temp) for inverse_temp in inverse_temps]
-        # extent = [x_min, x_max, 0, 1]
         X, Y = np.meshgrid(inverse_temps, [0, 1])
-        heatmap = axs[param_index].pcolormesh(X, Y, np.array(exact_ave_energies)[np.newaxis,:], vmin = vmin, vmax = 0, cmap="jet", )
-        # axs[param_index].imshow(np.array(exact_ave_energies)[np.newaxis,:], cmap="jet", aspect="auto", extent=extent)
-        axs[param_index].set_ylabel('Boltzmann distribution', rotation='horizontal')
-        axs[param_index].set_xlabel('1 / Temperature - 1 / T')
-        axs[param_index].set_xscale('log')
-        axs[param_index].set_yticks([])
-        axs[param_index].set_xlim(x_min, x_max)
-        param_index += 1
-        # axs[param_index].plot(inverse_temps, exact_ave_energies, label='Boltzmann distribution')
-        # axs[param_index].set_ylabel('Energy - E')
-        # axs[param_index].set_xlabel('1 / Temperature - 1 / T')
-        # axs[param_index].set_xscale('log')
-        # axs[param_index].set_xlim(x_min, x_max)
+        heatmap = axs[i].pcolormesh(X, Y, np.array(exact_ave_energies)[np.newaxis,:], vmin = h_min, vmax = h_max, cmap="jet", )
+        axs[i].set_ylabel('Boltzmann distribution', rotation='horizontal')
+        axs[i].set_xlabel('1 / Temperature - 1 / T')
+        axs[i].set_xscale('log')
+        axs[i].set_yticks([])
+        axs[i].set_xlim(x_min, x_max)
     fig.colorbar(heatmap, ax=axs)
     # fig.tight_layout()
     plt.savefig('{}_{}x{}/param_energy_vs_temp_radius_{}_heatmap.png'.format(interaction_shape, lattice_X, lattice_Y, radius))

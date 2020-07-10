@@ -5,15 +5,22 @@ import math
 
 class SpinLattice(util.Graph):
 
-    def __init__(self, lattice_X, lattice_Y, lattice_spacing, prob_full=1.0):
+    def __init__(self, lattice_X, lattice_Y, lattice_spacing, prob_full=1.0, triangular=False):
         super().__init__()
+        np.random.seed(0)
         self.lattice_spacing = lattice_spacing
         self.num_rows = int(lattice_X / self.lattice_spacing)
         self.num_cols = int(lattice_Y / self.lattice_spacing)
-        for r in range(self.num_rows):
-            for c in range(self.num_cols):
-                if np.random.uniform() <= prob_full: # turn off cells randomly
-                    self.add_vertex((r, c))
+        if not triangular:
+            for r in range(self.num_rows):
+                for c in range(self.num_cols):
+                    if np.random.uniform() <= prob_full: # turn off cells randomly
+                        self.add_vertex((r, c))
+        if triangular:
+            for r in range(self.num_rows):
+                for c in range(self.num_cols):
+                    if np.random.uniform() <= prob_full: # turn off cells randomly
+                        self.add_vertex((r * np.sqrt(3) / 2, c + (r % 2) / 2))
 
     def turn_on_interactions(self, interaction_fn):
         spins = self.get_vertices()
@@ -43,6 +50,7 @@ def step_fn(radius, alpha=None):
     return fn
 
 def random(radius=None, alpha=None):
+    np.random.seed(30)
     def fn(dist):
         return np.random.uniform()
     return fn

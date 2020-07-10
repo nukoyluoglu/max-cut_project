@@ -13,23 +13,22 @@ LATTICE_SPACING = 1
 NUM_PERFORMANCE_TRIALS = 100
 NUM_PARAM_TRIALS = 50
 
-def initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=1.0):
-    setup = experiment.SpinLattice(lattice_X, lattice_Y, LATTICE_SPACING, prob_full=fill)
+def initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=1.0, triangular=False):
+    setup = experiment.SpinLattice(lattice_X, lattice_Y, LATTICE_SPACING, prob_full=fill, triangular=triangular)
     setup.turn_on_interactions(interaction_fn(radius))
     return problem.MaxCutProblem(setup)
 
-def run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y, init_temp, cool_rate, fill=1.0):
+def run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y, init_temp, cool_rate, fill=1.0, triangular=False):
     ave_runtime = 0
     ave_step = 0
     ave_final_energy = 0
     best_final_energy = 0
-    # best_prob = None
     ave_energy_vs_temp = {}
     ave_energy_hist = {}
     ave_temp_hist = {}
     sample_best_partition_hist = None
     for _ in range(NUM_PARAM_TRIALS):
-        prob = initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=fill)
+        prob = initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=fill, triangular=triangular)
         algorithm.set_cooling_schedule(init_temp, cool_rate)
         myGlobals = globals()
         myGlobals.update({'algorithm': algorithm, 'prob': prob})
@@ -78,19 +77,17 @@ def run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y
     util.plot_params_energy_temp_vs_step(ave_energy_hist, ave_temp_hist, radius, lattice_X, lattice_Y, interaction_shape, init_temp, cool_rate)
     return {'ave_final_energy': ave_final_energy, 'ave_runtime': ave_runtime, 'ave_step': ave_step, 'best_final_energy': best_final_energy, 'ave_energy_vs_temp': ave_energy_vs_temp, 'ave_energy_hist': ave_energy_hist, 'ave_temp_hist': ave_temp_hist, 'sample_best_partition_hist': sample_best_partition_hist}
 
-def search_params(algorithm_name, interaction_fn, radius, lattice_X, lattice_Y, interaction_shape, ensemble=1, exact_best_energy=None, fill=1.0, plot=True):
+def search_params(algorithm_name, interaction_fn, radius, lattice_X, lattice_Y, interaction_shape, ensemble=1, exact_best_energy=None, fill=1.0, triangular=False, plot=True):
     if algorithm_name == 'simulated annealing':
         algorithm = algorithms.SimulatedAnnealing(ensemble=ensemble)
-        # init_temps = np.array([0.1, 2.0, 4.0, 6.0, 8.0, 10.0])
-        # cool_rates = np.linspace(0.1, 0.9, 9)
-        init_temps = np.array([2.0])
-        cool_rates = np.array([0.6])
+        init_temps = np.array([0.1, 2.0, 4.0, 6.0, 8.0, 10.0])
+        cool_rates = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
         best_solution = {}
         best_params = {'init_temp': None, 'cool_rate': None}
         ave_energy_vs_temp_by_params = collections.defaultdict(dict)
         for i in range(len(init_temps)): # consider acceptances starting from optimal value for previous radius
             for j in range(len(cool_rates)):
-                param_solution = run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y, init_temps[i], cool_rates[j], fill=fill)
+                param_solution = run_trials_for_param(algorithm, interaction_fn, radius, lattice_X, lattice_Y, init_temps[i], cool_rates[j], fill=fill, triangular=triangular)
                 ave_energy_vs_temp_by_params[init_temps[i]][cool_rates[j]] = param_solution['ave_energy_vs_temp']
                 if not best_solution or param_solution['best_final_energy'] < best_solution['best_final_energy'] or (param_solution['best_final_energy'] == best_solution['best_final_energy'] and param_solution['ave_step'] < best_solution['ave_step']):
                     best_solution = param_solution
@@ -102,60 +99,52 @@ def search_params(algorithm_name, interaction_fn, radius, lattice_X, lattice_Y, 
                 #     raise RuntimeError('Energy cannot be lower than exact minimum energy')
         if plot:
             util.plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=exact_best_energy)
-            # print(ave_energy_vs_temp_by_params[4.0][0.1])
-            # print(ave_energy_vs_temp_by_params[4.0][0.5])
-            util.plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, best_solution['best_final_energy'], exact_best_energy=exact_best_energy)
+            util.plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, exact_best_energy=exact_best_energy)
             # sample visualization of spin dynamics for best params
-            util.plot_spin_lattice([best_solution['sample_best_partition_hist'][-1]], radius, lattice_X, lattice_Y, interaction_shape)
-            # # sample plot of energy vs. time for best params
-            # util.plot_energy_temp_in_time(best['energy_history'], best['temp_history'], radius, lattice_X, lattice_Y, interaction_shape)
+            util.plot_spin_lattice([best_solution['sample_best_partition_hist'][-1]], radius, lattice_X, lattice_Y, interaction_shape, triangular=triangular)
         return best_solution, best_params
 
-def get_exact_solutions(lattice_X, lattice_Y, interaction_shape, fill=1.0):
+def get_exact_solutions(lattice_X, lattice_Y, interaction_shape, fill=1.0, triangular=False):
+    radius_range = np.arange(1.0, util.euclidean_dist_2D((0.0, 0.0), (lattice_X, lattice_Y), 1.0))
     if interaction_shape == 'step_fn':
         interaction_fn = experiment.step_fn
     elif interaction_shape == 'power_decay_fn':
         interaction_fn = experiment.power_decay_fn
-    else:
+    elif interaction_shape == 'random':
         interaction_fn = experiment.random
+        radius_range = np.zeros(1)
     w1 = csv.writer(open('{}_exact_sols_{}x{}/optimal_sols.csv'.format(interaction_shape, lattice_X, lattice_Y), 'w'))
     w1.writerow(['radius', 'min energy', '# ground states', '# states'])
-    for radius in np.arange(1, util.euclidean_dist_2D((0, 0), (lattice_X, lattice_Y), 1)):
-        prob = prob = initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=fill)
+    for radius in radius_range:
+        prob = prob = initialize_problem(interaction_fn, radius, lattice_X, lattice_Y, fill=fill, triangular=triangular)
         exact_best_energy, num_best_partitions, sample_best_partition, total_num_partitions, all_partition_energies = algorithms.BruteForce().solve(prob)
-        filename = '{}_exact_sols_{}x{}/optimal_spin_lattice_radius_{}.gif'.format(interaction_shape, lattice_X, lattice_Y, radius)
-        util.plot_spin_lattice([sample_best_partition], radius, lattice_X, lattice_Y, interaction_shape, filename=filename)
+        filename = '{}_exact_sols_{}x{}/optimal_spin_lattice_radius_{}'.format(interaction_shape, lattice_X, lattice_Y, radius)
+        util.plot_spin_lattice([sample_best_partition], radius, lattice_X, lattice_Y, interaction_shape, filename=filename, triangular=triangular)
         w1.writerow([radius, exact_best_energy, num_best_partitions, total_num_partitions])
         w2 = csv.writer(open('{}_exact_sols_{}x{}/energies_radius_{}.csv'.format(interaction_shape, lattice_X, lattice_Y, radius), 'w'))
         w2.writerow(['energy'])
         for energy in all_partition_energies:
             w2.writerow([energy])
 
-def algorithm_performance(algorithm_name, lattice_X, lattice_Y, interaction_shape, fill=1.0, ensemble=1, brute_force_solution=None, plot=True):
+def algorithm_performance(algorithm_name, lattice_X, lattice_Y, interaction_shape, fill=1.0, triangular=False, ensemble=1, brute_force_solution=None, plot=True):
+    algorithm_performance_by_radius = {}
+    radius_range = np.arange(1.0, util.euclidean_dist_2D((0.0, 0.0), (lattice_X, lattice_Y), 1.0))
     if interaction_shape == 'step_fn':
         interaction_fn = experiment.step_fn
     elif interaction_shape == 'power_decay_fn':
         interaction_fn = experiment.power_decay_fn
-    else:
+    elif interaction_shape == 'random':
         interaction_fn = experiment.random
-    algorithm_performance_by_radius = {}
-    # radii = []
-    # runtimes = []
-    # steps = []
-    for radius in np.arange(1, util.euclidean_dist_2D((0, 0), (lattice_X, lattice_Y), 1)):
-        if radius != 2.0:
-            continue
-        if plot:
+        radius_range = np.zeros(1)
+    for radius in radius_range:
+        if plot and interaction_shape != 'random':
             # plot of radius vs. interaction strength
             util.plot_interaction(interaction_fn(radius), radius, lattice_X, lattice_Y, interaction_shape)
         exact_best_energy = None
         if brute_force_solution:
             exact_best_energy = brute_force_solution[radius]
-        algorithm_performance_by_radius[radius] = search_params(algorithm_name, interaction_fn, radius, lattice_X, lattice_Y, interaction_shape, ensemble=ensemble, exact_best_energy=exact_best_energy, fill=fill)
-        # radii.append(radius)
-        # runtimes.append(best_solution['runtime'])
-        # steps.append(best_solution['step'])
-    if plot:
+        algorithm_performance_by_radius[radius] = search_params(algorithm_name, interaction_fn, radius, lattice_X, lattice_Y, interaction_shape, ensemble=ensemble, exact_best_energy=exact_best_energy, fill=fill, triangular=triangular)
+    if plot and interaction_shape != 'random':
         util.plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, lattice_Y, interaction_shape)
         # TODO: check scaling with system size
         # e.g. random coupling - exponential with system size
@@ -175,9 +164,9 @@ def main(interaction_shape='step_fn', plot=True):
         lattice_X = system_size
         lattice_Y = system_size
         exact_min_energy_by_radius = None
-        if system_size < 3:
+        if system_size < 5:
             # brute force, step function
-            get_exact_solutions(lattice_X, lattice_Y, interaction_shape)
+            get_exact_solutions(lattice_X, lattice_Y, interaction_shape, fill=1.0, triangular=True)
         if system_size < 5:
             exact_min_energy_by_radius = {}
             num_ground_states_by_radius = {}
@@ -188,13 +177,12 @@ def main(interaction_shape='step_fn', plot=True):
                 exact_min_energy_by_radius[radius] = float(row[1])
                 num_ground_states_by_radius[radius] = float(row[2])
             num_ground_states_by_system[system_size] = num_ground_states_by_radius
-        if system_size == 3:
-            # simulated annealing, step function
-            algorithm_performance_by_radius = algorithm_performance('simulated annealing', lattice_X, lattice_Y, interaction_shape, ensemble=1, brute_force_solution=exact_min_energy_by_radius)
-            algorithm_performance_by_system[system_size] = algorithm_performance_by_radius
-    util.plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, lattice_X, lattice_Y, interaction_shape)
-    if not num_ground_states_by_system:
-        util.plot_num_ground_states_vs_system_size(num_ground_states_by_system, lattice_X, lattice_Y, interaction_shape)
+        # simulated annealing
+        algorithm_performance_by_radius = algorithm_performance('simulated annealing', lattice_X, lattice_Y, interaction_shape, fill=1.0, triangular=True, ensemble=1, brute_force_solution=exact_min_energy_by_radius)
+        algorithm_performance_by_system[system_size] = algorithm_performance_by_radius
+    util.plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interaction_shape)
+    if num_ground_states_by_system:
+        util.plot_num_ground_states_vs_system_size(num_ground_states_by_system, interaction_shape)
 
 
     # get_exact_solutions(experiment.step_fn, 'step_fn_0.8_filled', fill=0.8)
