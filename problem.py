@@ -118,7 +118,7 @@ class MaxCutProblem(util.Graph):
         return self.objective_history
 
     def get_energy_history(self):
-        return [- 1.0 * objective for objective in self.objective_history]
+        return [- objective for objective in self.objective_history]
 
     def set_partition(self, partition):
         self.partition = partition
