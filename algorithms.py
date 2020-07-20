@@ -49,6 +49,10 @@ class SimulatedAnnealing(MaxCutAlgorithm):
         self.init_temp = init_temp
         self.cool_rate = cool_rate
 
+    def set_cooling_iter(self, total_num_iter_cooling):
+        self.max_num_iter_cooling = total_num_iter_cooling
+        self.no_change_treshold_cooling = float('inf')
+
     def get_temp_history(self):
         return self.temp_history
 
@@ -74,16 +78,21 @@ class SimulatedAnnealingEnsemble(MaxCutAlgorithm):
         self.temp_history = [self.init_temp]
         for k in range(self.max_num_iter_cooling):
             temp = self.init_temp * np.power(self.cool_rate, k)
-            energy_change_at_iter = 0
-            ensemble = self.generate_cluster(problem, temp)
-            for v in ensemble:
-                delta = problem.get_switch_energy_change(v)
-                problem.switch(v)
-                energy_change_at_iter += delta
-            problem.get_partition_history().append(copy.copy(problem.get_partition()))
-            problem.get_objective_history().append(copy.copy(problem.get_objective()))
-            self.temp_history.append(temp)       
-            if energy_change_at_iter == 0:
+            energy_change_at_temp = 0
+            temp_iter = 0
+            while temp_iter < self.max_num_iter_equilibrium:
+                delta_ensemble = 0
+                ensemble = self.generate_cluster(problem, temp)
+                for v in ensemble:
+                    delta = problem.get_switch_energy_change(v)
+                    problem.switch(v)
+                    delta_ensemble += delta
+                problem.get_partition_history().append(copy.copy(problem.get_partition()))
+                problem.get_objective_history().append(copy.copy(problem.get_objective()))
+                self.temp_history.append(temp) 
+                temp_iter += len(ensemble)    
+                energy_change_at_temp += delta_ensemble
+            if energy_change_at_temp == 0:
                 num_temp_no_change += 1
             else:
                 num_temp_no_change = 0
@@ -106,8 +115,9 @@ class SimulatedAnnealingEnsemble(MaxCutAlgorithm):
             v_cluster.append(v)
             for n in problem.get_neighbors(v):
                 ratio = problem.get_edge(v, n) / temp if temp >= 1e-300 else float('inf')
+                # using how energy is symmetric w.r.t. partition
                 # p = 1 - np.exp(-2 * ratio)
-                p = 1 - np.exp(- ratio)
+                p = np.exp(-2 * ratio)
                 if problem.get_partition()[v] == problem.get_partition()[n] and np.random.uniform() <= p:
                     v_stack.append(n)
         return v_cluster

@@ -33,6 +33,22 @@ class SpinLattice(util.Graph):
             if strength > 0:
                 self.add_edge(spin1, spin2, strength)
 
+class FreeSpins(util.Graph):
+
+    def __init__(self, num_particles):
+        super().__init__()
+        np.random.seed(0)
+        self.num_particles = num_particles
+        for p in range(self.num_particles):
+            self.add_vertex(p)
+
+    def turn_on_interactions(self, interaction_fn):
+        spins = self.get_vertices()
+        for spin1, spin2 in combinations(spins, 2):
+            strength = interaction_fn()
+            if strength > 0:
+                self.add_edge(spin1, spin2, strength)
+
 def power_decay_fn(radius, alpha=6.0):
     def fn(dist):
         return 1.0 / (1.0 + np.power(dist / radius, alpha))
@@ -51,6 +67,6 @@ def step_fn(radius, alpha=None):
 
 def random(radius=None, alpha=None):
     np.random.seed(30)
-    def fn(dist):
+    def fn(dist=None):
         return np.random.uniform()
     return fn

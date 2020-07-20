@@ -93,8 +93,9 @@ def plot_interaction(interaction_fn, radius, lattice_X, lattice_Y, interaction_s
     plt.plot(dist, interaction_strength)
     plt.xlabel('Distance - r')
     plt.ylabel('Interaction Strength - J')
+    plt.ylim(bottom=0)
     plt.axvline(radius, linestyle='dashed', color='g')
-    plt.savefig('{}/interaction_function_radius_{}.png'.format(path, radius))
+    plt.savefig('{}/interaction_function.png'.format(path))
     plt.close()
 
 def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, lattice_Y, interaction_shape, path):
@@ -104,8 +105,8 @@ def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, la
     col_info = {}
     for radius, (solution, params) in algorithm_performance_by_radius.items():
         radii.append(radius)
-        runtimes.append(solution['ave_runtime'])
-        steps.append(solution['ave_step'])
+        runtimes.append(solution['runtime'])
+        steps.append(solution['step'])
         col_info[radius] = 'radius = {}\nE_f = {}\nT_0 = {}, r = {}'.format(radius, round(solution['ave_final_energy'], 1), params['init_temp'], params['cool_rate'])
     fig, ax1 = plt.subplots()
     plt.title('L = {}, {}'.format(lattice_X, interaction_shape))
@@ -129,9 +130,13 @@ def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, la
 
 def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interaction_shape, path):
     runtimes_steps_vs_system_size_by_radius = defaultdict(dict)
-    for system_size, algorithm_performance_by_radius in algorithm_performance_by_system.items():
-        for radius, solution in algorithm_performance_by_radius.items():
-            runtimes_steps_vs_system_size_by_radius[radius][system_size] = solution
+    if interaction_shape == 'random':
+        for system_size, algorithm_performance_by_radius in algorithm_performance_by_system.items():
+            runtimes_steps_vs_system_size_by_radius['NA'][system_size] = algorithm_performance_by_radius
+    else:
+        for system_size, algorithm_performance_by_radius in algorithm_performance_by_system.items():
+            for radius, solution in algorithm_performance_by_radius.items():
+                runtimes_steps_vs_system_size_by_radius[radius][system_size] = solution
     for radius, runtimes_steps_vs_system_size in runtimes_steps_vs_system_size_by_radius.items():
         system_sizes = []
         runtimes = []
@@ -139,9 +144,9 @@ def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interact
         col_info = {}
         for system_size, (solution, params) in runtimes_steps_vs_system_size.items():
             system_sizes.append(system_size)
-            runtimes.append(solution['ave_runtime'])
-            steps.append(solution['ave_step'])
-            col_info[system_size] = 'L = {}\nE_f = {}\nT_0 = {}, r = {}'.format(system_size, round(solution['ave_final_energy'], 1), params['init_temp'], params['cool_rate'])
+            runtimes.append(solution['runtime'])
+            steps.append(solution['step'])
+            col_info[system_size] = 'L = {}\nE_f = {}\nT_0 = {}, r = {}'.format(system_size, round(solution['best_energy'], 1), params['init_temp'], params['cool_rate'])
         fig, ax1 = plt.subplots()
         plt.title('{}, radius = {}'.format(interaction_shape, radius))
         color = 'tab:red'
@@ -163,9 +168,13 @@ def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interact
 
 def plot_num_ground_states_vs_system_size(num_ground_states_by_system, interaction_shape, path):
     num_ground_states_vs_system_size_by_radius = defaultdict(dict)
-    for system_size, num_ground_states_by_radius in num_ground_states_by_system.items():
-        for radius, num_ground_states in num_ground_states_by_radius.items():
-            num_ground_states_vs_system_size_by_radius[radius][system_size] = num_ground_states
+    if interaction_shape == 'random':
+        for system_size, num_ground_states_by_radius in num_ground_states_by_system.items():
+            num_ground_states_vs_system_size_by_radius['NA'][system_size] = num_ground_states_by_radius
+    else:
+        for system_size, num_ground_states_by_radius in num_ground_states_by_system.items():
+            for radius, num_ground_states in num_ground_states_by_radius.items():
+                num_ground_states_vs_system_size_by_radius[radius][system_size] = num_ground_states
     for radius, num_ground_states_vs_system_size in num_ground_states_vs_system_size_by_radius.items():
         system_sizes = []
         nums_ground_states = []
@@ -207,31 +216,91 @@ def plot_spin_lattice(spin_history, energy_history, radius, lattice_X, lattice_Y
         plt.gca().set_aspect('equal', adjustable='box')
         camera.snap()
     animation = camera.animate()
-    animation.save('{}/spin_lattice_radius_{}.gif'.format(path, radius), writer = 'imagemagick')
+    animation.save('{}/spin_lattice.gif'.format(path), writer = 'imagemagick')
     plt.close()
 
-def plot_energy_temp_vs_step(ave_energy_history, ave_temp_history, radius, lattice_X, lattice_Y, interaction_shape, init_temp, cool_rate, path):
+def plot_energy_temp_vs_step(ave_energy_history, ave_temp_history, radius, system_size, interaction_shape, init_temp, cool_rate, path, exact_best_energy):
+    ave_energy_history = np.array([ave_energy_history[t] for t in range(len(ave_energy_history))])
+    ave_temp_history = np.array([ave_temp_history[t] for t in range(len(ave_temp_history))])
     if len(ave_energy_history) != len(ave_temp_history):
         raise RuntimeError('Length of energy and temperature histories must match')
     fig, ax1 = plt.subplots()
-    plt.title('L = {}, {}, radius = {}, T_0 = {}, r = {}'.format(lattice_X, interaction_shape, radius, init_temp, cool_rate))
+    title = 'L = {}, {}, radius = {}, T_0 = {}, r = {}\nE_min = {}'.format(system_size, interaction_shape, radius, init_temp, cool_rate, min(ave_energy_history))
     color = 'tab:red'
     ax1.set_xlabel('Time Steps - t')
     ax1.set_ylabel('Energy - E', color=color)
-    ax1.plot(range(len(ave_energy_history)), list(ave_energy_history.values()), color=color)
+    if exact_best_energy:
+        ave_energy_history -= exact_best_energy
+        title += ', exact E_min = {}'.format(exact_best_energy)
+        ax1.set_ylabel('Energy Difference from Ground State - \u0394E', color=color)
+        ax1.set_yscale('log')
+    ax1.plot(range(len(ave_energy_history)), ave_energy_history, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
     ax2.set_ylabel('Temperature - T', color=color)
-    ax2.plot(range(len(ave_temp_history)), list(ave_temp_history.values()), color=color)
+    ax2.plot(range(len(ave_temp_history)), ave_temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
+    plt.title(title)
     fig.tight_layout()
-    plt.savefig('{}/energy_temp_vs_step_radius_{}_T0_{}_r_{}.png'.format(path, radius, init_temp, cool_rate))
+    plt.savefig('{}/energy_temp_vs_step_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
     plt.close()
 
-def plot_temporary(energy_history, temp_history, radius, lattice_X, lattice_Y, interaction_shape, init_temp, cool_rate, t, path):
+def plot_prob_ground_state_temp_vs_step(prob_ground_state_history, ave_temp_history, optimal_step, radius, num_particles, interaction_shape, init_temp, cool_rate, path):
+    prob_ground_state_history = np.array([prob_ground_state_history[t] for t in range(len(prob_ground_state_history))])
+    ave_temp_history = np.array([ave_temp_history[t] for t in range(len(ave_temp_history))])
+    if len(prob_ground_state_history) != len(ave_temp_history):
+        raise RuntimeError('Length of energy and temperature histories must match')
+    fig, ax1 = plt.subplots()
+    title = 'N = {}, {}, radius = {}, T_0 = {}, r = {}'.format(num_particles, interaction_shape, radius, init_temp, cool_rate)
+    color = 'tab:red'
+    ax1.set_xlabel('Time Steps - t')
+    ax1.set_ylabel('Probability of Reaching Ground State - P(t)', color=color)
+    ax1.plot(range(len(prob_ground_state_history)), prob_ground_state_history, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax2 = ax1.twinx()
+    color = 'tab:blue'
+    ax2.set_ylabel('Temperature - T', color=color)
+    ax2.plot(range(len(ave_temp_history)), ave_temp_history, color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+    if optimal_step:
+        plt.axvline(optimal_step, color='g', label='t_optimal = {}, P(t_optimal) = {}'.format(optimal_step, prob_ground_state_history[optimal_step]))
+    plt.title(title)
+    plt.legend()
+    fig.tight_layout()
+    plt.savefig('{}/prob_ground_state_temp_vs_step_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
+    plt.close()
+
+def plot_step_optimization(optimize_step, ave_temp_history, optimal_step, radius, num_particles, interaction_shape, init_temp, cool_rate, path):
+    optimize_step = np.array([optimize_step[t] for t in range(1, len(optimize_step) + 1)])
+    ave_temp_history = np.array([ave_temp_history[t] for t in range(1, len(ave_temp_history))])
+    if len(optimize_step) != len(ave_temp_history):
+        raise RuntimeError('Length of energy and temperature histories must match')
+    fig, ax1 = plt.subplots()
+    title = 'N = {}, {}, radius = {}, T_0 = {}, r = {}'.format(num_particles, interaction_shape, radius, init_temp, cool_rate)
+    color = 'tab:red'
+    ax1.set_xlabel('Time Steps - t')
+    ax1.set_ylabel('Quantity to Optimize - t / log(1 - P(t))', color=color)
+    ax1.plot(range(1, len(optimize_step) + 1), optimize_step, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax2 = ax1.twinx()
+    color = 'tab:blue'
+    ax2.set_ylabel('Temperature - T', color=color)
+    ax2.plot(range(1, len(ave_temp_history) + 1), ave_temp_history, color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+    if optimal_step:
+        plt.axvline(optimal_step, color='g', label='t_optimal = {}'.format(optimal_step))
+    plt.title(title)
+    plt.legend()
+    fig.tight_layout()
+    plt.savefig('{}/step_optimization_temp_vs_step_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
+    plt.close()
+
+def plot_temporary(energy_history, temp_history, init_temp, cool_rate, t, path, exact_best_energy):
     if len(energy_history) != len(temp_history):
         raise RuntimeError('Length of energy and temperature histories must match')
+    if exact_best_energy:
+        energy_history = np.array(energy_history) - exact_best_energy
     fig, ax1 = plt.subplots()
     color = 'tab:red'
     ax1.set_xlabel('Time Steps - t')
@@ -244,7 +313,7 @@ def plot_temporary(energy_history, temp_history, radius, lattice_X, lattice_Y, i
     ax2.plot(range(len(temp_history)), temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
-    plt.savefig('{}/{}_energy_temp_in_time_radius_{}_T0_{}_r_{}.png'.format(path, t, radius, init_temp, cool_rate))
+    plt.savefig('{}/{}_energy_temp_in_time_T0_{}_r_{}.png'.format(path, t, init_temp, cool_rate))
     plt.close()
 
 def boltzmann_dist(all_states_energy, temp):
@@ -256,10 +325,12 @@ def boltzmann_dist(all_states_energy, temp):
         denom += factor
     return num / denom
 
-def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, path, exact_best_energy, exact_path):
+def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius, system_size, interaction_shape, path, exact_best_energy, exact_path):
     for init_temp, ave_energy_vs_temp_by_cool_rate in ave_energy_vs_temp_by_params.items():
         plt.figure()
-        plt.title('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, radius))
+        plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
+        if exact_best_energy:
+            plt.axhline(exact_best_energy, linestyle='dashed', color='b', alpha=0.5, label='brute force')
         for cool_rate, ave_energy_vs_temp in ave_energy_vs_temp_by_cool_rate.items():
             inverse_temps = []
             ave_energies = []
@@ -274,7 +345,6 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius
             p = plt.plot(inverse_temps, ave_energies, label=label)
             plt.errorbar(inverse_temps, ave_energies, yerr=errors, alpha=0.5, ecolor=p[-1].get_color())
         if exact_best_energy:
-            plt.axhline(exact_best_energy, label='brute force')
             all_energies = []
             r = csv.reader(open('{}/energies_radius_{}.csv'.format(exact_path, radius), 'r'))
             next(r)
@@ -286,15 +356,15 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius
         plt.xscale('log')
         plt.xlabel('1 / Temperature - 1 / T')
         plt.ylabel('Energy - E')
-        plt.savefig('{}/param_energy_vs_temp_radius_{}_T0_{}.png'.format(path, radius, init_temp))
+        plt.savefig('{}/param_energy_vs_temp_T0_{}.png'.format(path, init_temp))
         plt.close()
 
-def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, lattice_X, lattice_Y, interaction_shape, path, exact_best_energy, exact_path):
+def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params, radius, system_size, interaction_shape, path, exact_best_energy, exact_path):
     num_subplots = sum(len(n) for n in ave_energy_vs_temp_by_params.values())
     if exact_best_energy:
         num_subplots += 1
     fig, axs = plt.subplots(num_subplots, 1, sharex=True, gridspec_kw=dict(hspace=0), figsize=(20, 15), constrained_layout=True)
-    fig.suptitle('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, radius))
+    fig.suptitle('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     x_min = float('inf')
     x_max = 0
     h_min = exact_best_energy if exact_best_energy else float('inf')
@@ -342,7 +412,92 @@ def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params
         axs[i].set_xlim(x_min, x_max)
     # plt.subplots_adjust(hspace=None, wspace=None)
     fig.colorbar(heatmap, ax=axs)
-    plt.savefig('{}/param_energy_vs_temp_radius_{}_heatmap.png'.format(path, radius), bbox_inches='tight')
+    plt.savefig('{}/param_energy_vs_temp_heatmap.png'.format(path), bbox_inches='tight')
+    plt.close()
+
+def plot_params_prob_ground_state_vs_temp(prob_ground_state_vs_temp_by_params, best_params, radius, system_size, interaction_shape, path, exact_best_energy, exact_path):
+    for init_temp, prob_ground_state_vs_temp_by_cool_rate in prob_ground_state_vs_temp_by_params.items():
+        plt.figure()
+        plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
+        for cool_rate, prob_ground_state_vs_temp in prob_ground_state_vs_temp_by_cool_rate.items():
+            inverse_temps = []
+            probs_ground_state = []
+            errors = []
+            for temp, (prob_ground_state, error) in prob_ground_state_vs_temp.items():
+                inverse_temps.append(1.0 / temp)
+                probs_ground_state.append(prob_ground_state)
+                errors.append(error)
+            label = 'T_0 = {}, r = {}, T_f = {}'.format(init_temp, round(cool_rate, 1), np.format_float_scientific(1.0 / inverse_temps[-1], precision=1))
+            if init_temp == best_params['init_temp'] and cool_rate == best_params['cool_rate']:
+                label += ', optimal'
+            p = plt.plot(inverse_temps, probs_ground_state, label=label)
+            plt.errorbar(inverse_temps, probs_ground_state, yerr=errors, alpha=0.5, ecolor=p[-1].get_color())
+        if exact_best_energy:
+            all_energies = []
+            r = csv.reader(open('{}/energies_radius_{}.csv'.format(exact_path, radius), 'r'))
+            next(r)
+            for row in r:
+                all_energies.append(float(row[0]))
+            exact_energies = [boltzmann_dist(all_energies, 1.0 / inverse_temp) for inverse_temp in inverse_temps]
+            exact_probs_ground_state = [float(energy == exact_best_energy) for energy in exact_energies]
+            plt.plot(inverse_temps, exact_probs_ground_state, label='Boltzmann distribution')
+        plt.legend()
+        plt.xscale('log')
+        plt.xlabel('1 / Temperature - 1 / T')
+        plt.ylabel('Probability of Reaching Ground State - P(T)')
+        plt.savefig('{}/param_prob_ground_state_vs_temp_T0_{}.png'.format(path, init_temp))
+        plt.close()
+
+def plot_params_prob_ground_state_vs_temp_heatmap(prob_ground_state_vs_temp_by_params, best_params, radius, system_size, interaction_shape, path, exact_best_energy, exact_path):
+    num_subplots = sum(len(n) for n in prob_ground_state_vs_temp_by_params.values())
+    if exact_best_energy:
+        num_subplots += 1
+    fig, axs = plt.subplots(num_subplots, 1, sharex=True, gridspec_kw=dict(hspace=0), figsize=(20, 15), constrained_layout=True)
+    fig.suptitle('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
+    x_min = float('inf')
+    x_max = 0
+    param_data = []
+    for init_temp, prob_ground_state_vs_temp_by_cool_rate in prob_ground_state_vs_temp_by_params.items():
+        for cool_rate, prob_ground_state_vs_temp in prob_ground_state_vs_temp_by_cool_rate.items():
+            inverse_temps = []
+            probs_ground_state = []
+            errors = []
+            for temp, (prob_ground_state, error) in prob_ground_state_vs_temp.items():
+                inverse_temps.append(1.0 / temp)
+                probs_ground_state.append(prob_ground_state)
+                errors.append(error)
+                x_min = min(1.0 / temp, x_min)
+                x_max = max(1.0 / temp, x_max)
+            param_data.append((inverse_temps, (init_temp, cool_rate), probs_ground_state))
+    for i in range(len(param_data)):
+        x, (T_0, r), h = param_data[i]
+        x_edges, y_edges = np.meshgrid(x, [0, 5])
+        heatmap = axs[i].pcolormesh(x_edges, y_edges, np.array(h)[np.newaxis,:], vmin = 0.0, vmax = 1.0, cmap="jet")
+        label = 'T_0 = {}, r = {},\nT_f = {}'.format(T_0, round(r, 1), np.format_float_scientific(1.0 / x[-1], precision=1))
+        if T_0 == best_params['init_temp'] and r == best_params['cool_rate']:
+            label += ', optimal'
+        axs[i].set_ylabel(label, rotation='horizontal', verticalalignment='center')
+        axs[i].set_yticks([])
+        axs[i].xaxis.set_visible(False)
+    i = len(param_data)
+    if exact_best_energy:
+        all_energies = []
+        r = csv.reader(open('{}/energies_radius_{}.csv'.format(exact_path, radius), 'r'))
+        next(r)
+        for row in r:
+            all_energies.append(float(row[0]))
+        inverse_temps = np.logspace(np.floor(np.log10(x_min)), np.ceil(np.log10(x_max)))
+        exact_energies = [boltzmann_dist(all_energies, 1.0 / inverse_temp) for inverse_temp in inverse_temps]
+        exact_probs_ground_state = [float(energy == exact_best_energy) for energy in exact_energies]
+        X, Y = np.meshgrid(inverse_temps, [0, 5])
+        axs[i].pcolormesh(X, Y, np.array(exact_probs_ground_state)[np.newaxis,:], vmin = 0.0, vmax = 1.0, cmap="jet", )
+        axs[i].set_ylabel('Boltzmann distribution', rotation='horizontal', verticalalignment='center')
+        axs[i].set_xlabel('1 / Temperature - 1 / T')
+        axs[i].set_xscale('log')
+        axs[i].set_yticks([])
+        axs[i].set_xlim(x_min, x_max)
+    fig.colorbar(heatmap, ax=axs)
+    plt.savefig('{}/param_prob_ground_state_vs_temp_heatmap.png'.format(path), bbox_inches='tight')
     plt.close()
 
 def make_dir(dir_name):

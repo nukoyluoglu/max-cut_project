@@ -7,6 +7,7 @@ class MaxCutProblem(util.Graph):
 
     def __init__(self, setup):
         super().__init__(setup.get_vertex_dict())
+        np.random.seed()
         self.partition = {v: 2 * np.random.randint(2) - 1 for v in self.get_vertices()}
         self.objective = 0
         self.set_objective()
@@ -64,9 +65,9 @@ class MaxCutProblem(util.Graph):
                         self.switch_change[n] -= w
                 else:
                     if self.partition[v] == self.partition[n]:
-                        self.switch_change[n] += 2 * w
+                        self.switch_change[n] += 2.0 * w
                     else:
-                        self.switch_change[n] -= 2 * w
+                        self.switch_change[n] -= 2.0 * w
         if self.objective > self.best_objective:
             self.best_objective = self.objective
             self.best_partition = self.partition
