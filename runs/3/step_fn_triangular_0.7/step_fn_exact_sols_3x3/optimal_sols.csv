@@ -1,0 +1,5 @@
+radius,min energy,# ground states,# states
+1.0,-5,6,64
+2.0,-8,10,64
+3.0,-9,20,64
+4.0,-9,20,64
