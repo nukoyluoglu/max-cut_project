@@ -6,7 +6,7 @@ import copy
 class MaxCutProblem(util.Graph):
 
     def __init__(self, setup):
-        super().__init__(setup.get_vertex_dict())
+        super().__init__(setup.get_vertex_dict(), setup.get_edge_dict())
         np.random.seed()
         self.partition = {v: 2 * np.random.randint(2) - 1 for v in self.get_vertices()}
         self.objective = 0
@@ -29,10 +29,11 @@ class MaxCutProblem(util.Graph):
         for v in self.get_vertices():
             for n in self.get_neighbors(v):
                 w = self.get_edge(v, n)
-                if self.partition[v] == self.partition[n]:
-                    change[v] += w
-                else:
-                    change[v] -= w
+                change[v] += w * self.partition[v] * self.partition[n]
+                # if self.partition[v] == self.partition[n]:
+                #     change[v] += w
+                # else:
+                #     change[v] -= w
         return change
 
     def switch(self, v):
@@ -44,10 +45,11 @@ class MaxCutProblem(util.Graph):
         self.switch_change[v] = - self.switch_change[v]
         for n in self.get_neighbors(v):
             w = self.get_edge(v, n)
-            if self.partition[v] == self.partition[n]:
-                self.switch_change[n] += 2.0 * w
-            else:
-                self.switch_change[n] -= 2.0 * w
+            self.switch_change[n] += 2.0 * w * self.partition[v] * self.partition[n]
+            # if self.partition[v] == self.partition[n]:
+            #     self.switch_change[n] += 2.0 * w
+            # else:
+            #     self.switch_change[n] -= 2.0 * w
 
     def switch_ensemble(self, v_ensemble):
         for v in v_ensemble:
@@ -57,17 +59,20 @@ class MaxCutProblem(util.Graph):
             for n in self.get_neighbors(v):
                 w = self.get_edge(v, n)
                 if n in v_ensemble:
-                    if self.partition[v] == self.partition[n]:
-                        self.objective -= w
-                        self.switch_change[n] += w
-                    else:
-                        self.objective += w
-                        self.switch_change[n] -= w
+                    # if self.partition[v] == self.partition[n]:
+                    #     self.objective -= w
+                    #     self.switch_change[n] += w
+                    # else:
+                    #     self.objective += w
+                    #     self.switch_change[n] -= w
+                    self.objective -= w * self.partition[v] * self.partition[n]
+                    self.switch_change[n] += w * self.partition[v] * self.partition[n]
                 else:
-                    if self.partition[v] == self.partition[n]:
-                        self.switch_change[n] += 2.0 * w
-                    else:
-                        self.switch_change[n] -= 2.0 * w
+                    # if self.partition[v] == self.partition[n]:
+                    #     self.switch_change[n] += 2.0 * w
+                    # else:
+                    #     self.switch_change[n] -= 2.0 * w
+                    self.switch_change[n] += w * self.partition[v] * self.partition[n]
         if self.objective > self.best_objective:
             self.best_objective = self.objective
             self.best_partition = self.partition
@@ -85,10 +90,11 @@ class MaxCutProblem(util.Graph):
             for n in self.get_neighbors(v):
                 w = self.get_edge(v, n)
                 if n in v_ensemble:
-                    if self.partition[v] == self.partition[n]:
-                        delta -= w
-                    else:
-                        delta += w
+                    # if self.partition[v] == self.partition[n]:
+                    #     delta -= w
+                    # else:
+                    #     delta += w
+                    delta -= w * self.partition[v] * self.partition[n]
         return delta
 
     def get_switch_ensemble_energy_change(self, v_ensemble):
@@ -123,6 +129,9 @@ class MaxCutProblem(util.Graph):
 
     def set_partition(self, partition):
         self.partition = partition
+
+    def get_edges(self):
+        return [[weight, v1, v2] for (v1, v2), weight in self.get_edge_dict().items()]
 
 
 
