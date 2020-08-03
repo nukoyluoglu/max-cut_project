@@ -49,7 +49,7 @@ def run_trials_for_param(algorithm, interaction_fn, num_particles, exact_best_en
         if abs(best_energy - exact_best_energy) <= min_energy_gap:
             ground_state_found = energy_hist.index(best_energy)
         elif best_energy - exact_best_energy < - min_energy_gap:
-            raise RuntimeError('Cannot reach energy below ground state energy')
+            print('WARNING: Cannot reach energy below ground state energy')
         temp_hist = algorithm.get_temp_history()
         ave_runtime += runtime
         ave_step += step
@@ -202,8 +202,8 @@ def simulate(structure, interaction_shape, ensemble, plot=True):
     algorithm_performance_by_system = {}
     num_ground_states_by_system = {}
     w0 = csv.writer(open('{}/runtimes_25_params_100_iters.csv'.format(title), 'w'))
-    w0.writerow(['min energy', '# ground states', '# states'])
-    for system_size in range(9, 26):
+    w0.writerow(['system size', 'runtime (s)'])
+    for system_size in range(4, 26):
         start = time.time()
         exact_sols_dir = None
         # brute force
