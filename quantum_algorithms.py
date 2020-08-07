@@ -32,13 +32,9 @@ def VQE_optimization_fn(psi_0, H, B, alpha, DTWA, penalize):
         return final_exp_H
     return fn
 
-def VQE(psi_0, H, B, n_params, DTWA, param_bounds=None, penalize=False):
-    if n_params == 1:
-        init_params = 1.
-    else:
-        init_params = np.ones(n_params)
+def VQE(psi_0, H, B, init_params, DTWA, param_bounds=None, penalize=False):
     optimization_fn = VQE_optimization_fn(psi_0, H, B, alpha, DTWA, penalize)
-    classical_optimization = minimize(optimization_fn, init_params, bounds=param_bounds)
+    classical_optimization = minimize(optimization_fn, np.array(init_params), bounds=param_bounds)
     if classical_optimization.get('success'):
         return classical_optimization.get('x')
     raise RuntimeError('Optimization failed')
@@ -104,8 +100,11 @@ def QAOA(H, B, alpha, dims, title, DTWA=None):
     
     # optimal angles to reach ground state using VQE
     angle_bounds = [(0, np.inf) if i % 2 == 0 else (- np.inf, np.inf) for i in range(2 * alpha)]
+    init_betas = [(0.5 + i) / alpha for i in range(alpha)]
+    init_gammas = sorted(init_betas, reverse=True)
+    init_angles = [init_betas[int(i / 2)] if i % 2 == 0 else init_gammas[int(i / 2)] for i in range(2 * alpha)]
     start = time.time()
-    angles = VQE(psi_0, H, B, 2 * alpha, DTWA, param_bounds=angle_bounds, penalize=True) # series of reference 
+    angles = VQE(psi_0, H, B, init_angles, DTWA, param_bounds=angle_bounds, penalize=False) # series of reference 
     end = time.time()
     
     print('ANGLES (BETA - GAMMA - ...)')
@@ -159,8 +158,7 @@ if __name__ == '__main__':
         state_probs_t_alpha = {}
         angles_alpha = {}
         VQE_runtimes_alpha = {}
-        alpha_range = range(1, 11) if L < 4 else range(1, 5)
-        for alpha in alpha_range:
+        for alpha in range(1, 16):
             t, angles, state_probs_t, VQE_runtime = QAOA(H, B, alpha, dims, title)
             state_probs_t_alpha[alpha] = (state_probs_t, t)
             angles_alpha[alpha] = angles

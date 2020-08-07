@@ -3,7 +3,8 @@ import numpy as np
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from plotly import graph_objects as go, express as px
+from scipy.interpolate import splrep, splev
+from scipy.stats import binned_statistic
 import csv
 from celluloid import Camera
 import os
@@ -106,8 +107,8 @@ def plot_interaction(interaction_fn, radius, lattice_X, lattice_Y, lattice_spaci
     dist = np.arange(0, euclidean_dist_2D((0, 0), (lattice_X * lattice_spacing, lattice_Y * lattice_spacing)), 0.01)
     interaction_strength = [- interaction_fn(r) for r in dist]
     plt.plot(dist, interaction_strength)
-    plt.xlabel('Distance - r')
-    plt.ylabel('Interaction Strength - J')
+    plt.xlabel('Distance, d')
+    plt.ylabel('Interaction Strength, J')
     plt.ylim(bottom=0)
     plt.axvline(radius, linestyle='dashed', color='g')
     plt.savefig('{}/interaction_function.png'.format(path))
@@ -126,7 +127,7 @@ def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, la
     fig, ax1 = plt.subplots()
     plt.title('L = {}, {}'.format(lattice_X, interaction_shape))
     color = 'tab:red'
-    ax1.set_xlabel('Radius - r')
+    ax1.set_xlabel('Radius, R')
     ax1.set_ylabel('Runtime (s)', color=color)
     ax1.plot(radii, runtimes, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
@@ -143,7 +144,7 @@ def plot_runtimes_steps_vs_radius(algorithm_performance_by_radius, lattice_X, la
     plt.savefig('{}/runtimes_steps_vs_radius.png'.format(path))
     plt.close()
 
-def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interaction_shape, path):
+def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interaction_shape, path, steps_random_select_by_system=None):
     runtimes_steps_vs_system_size_by_radius = defaultdict(dict)
     if interaction_shape == 'random':
         for system_size, algorithm_performance_by_radius in algorithm_performance_by_system.items():
@@ -156,27 +157,38 @@ def plot_runtimes_steps_vs_system_size(algorithm_performance_by_system, interact
         system_sizes = []
         runtimes = []
         steps = []
+        if steps_random_select_by_system:
+            random_steps = []
         col_info = {}
+        w = csv.writer(open('{}/runtimes_steps_vs_system_size_radius_{}.csv'.format(path, radius), 'w'))
+        w.writerow(['system size', 'step', 'runtime'])
         for system_size, (solution, params) in runtimes_steps_vs_system_size.items():
             system_sizes.append(system_size)
             runtimes.append(solution['runtime'])
             steps.append(solution['step'])
-            col_info[system_size] = 'L = {}\nE_f = {}\nT_0 = {}, r = {}'.format(system_size, round(solution['best_energy'], 1), params['init_temp'], params['cool_rate'])
-        fig, ax1 = plt.subplots(figsize=(12, 9))
+            if steps_random_select_by_system:
+                random_steps.append(steps_random_select_by_system[system_size])
+            col_info[system_size] = 'L = {}\nE_f = {}\nT_0 = {}\nr = {}'.format(system_size, round(solution['best_energy'], 1), params['init_temp'], params['cool_rate'])
+            w.writerow([system_size, solution['step'], solution['runtime']])
+        fig, ax1 = plt.subplots(figsize=(16, 12))
         plt.title('{}, radius = {}'.format(interaction_shape, radius))
         color = 'tab:red'
-        ax1.set_xlabel('System Size - L')
+        ax1.set_xlabel('System Size, L')
         ax1.set_ylabel('Runtime (s)', color=color)
         ax1.plot(system_sizes, runtimes, color=color)
         ax1.tick_params(axis='y', labelcolor=color)
         ax1.set_ylim(bottom=0)
         ax2 = ax1.twinx()
         color = 'tab:blue'
-        ax2.set_ylabel('Steps', color=color)
-        ax2.plot(system_sizes, steps, color=color)
+        ax2.set_ylabel('Time Steps, t', color=color)
+        ax2.plot(system_sizes, steps, color=color, label='Simulated Annealing')
         ax2.tick_params(axis='y', labelcolor=color)
-        ax2.set_ylim(bottom=0)
+        if steps_random_select_by_system:
+            color = 'tab:green'
+            ax2.plot(system_sizes, random_steps, color=color, label='Random Selection')
+        ax2.set_yscale('log')
         plt.xticks(list(col_info.keys()), list(col_info.values()))
+        plt.legend()
         fig.tight_layout()
         plt.savefig('{}/runtimes_steps_vs_system_size_radius_{}.png'.format(path, radius))
         plt.close()
@@ -198,7 +210,7 @@ def plot_num_ground_states_vs_system_size(num_ground_states_by_system, interacti
             nums_ground_states.append(num_ground_states)
         plt.figure()
         plt.plot(system_sizes, nums_ground_states)
-        plt.xlabel('System Size - L')
+        plt.xlabel('System Size, L')
         plt.ylabel('Number of Ground States')
         plt.title('{}, radius = {}'.format(interaction_shape, radius))
         plt.savefig('{}/num_ground_states_vs_system_size_radius_{}.png'.format(path,radius))
@@ -241,8 +253,8 @@ def plot_energy_temp_vs_step(ave_energy_history, ave_temp_history, radius, syste
     fig, ax1 = plt.subplots()
     title = 'L = {}, {}, radius = {}, T_0 = {}, r = {}\nE_min = {}'.format(system_size, interaction_shape, radius, init_temp, cool_rate, min(ave_energy_history))
     color = 'tab:blue'
-    ax1.set_xlabel('Time Steps - t')
-    ax1.set_ylabel('Temperature - T', color=color)
+    ax1.set_xlabel('Time Steps, t')
+    ax1.set_ylabel('Temperature, T', color=color)
     ax1.plot(range(len(ave_temp_history)), ave_temp_history, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()
@@ -253,7 +265,7 @@ def plot_energy_temp_vs_step(ave_energy_history, ave_temp_history, radius, syste
         ax2.set_ylabel('Energy Difference from Ground State - \u0394E', color=color)
         ax2.set_yscale('log')
     ax2.plot(range(len(ave_energy_history)), ave_energy_history, color=color)
-    ax2.set_ylabel('Energy - E', color=color)
+    ax2.set_ylabel('Energy, E', color=color)
     # ax2.errorbar(range(len(ave_energy_history)), ave_energy_history, yerr=energy_error_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     plt.title(title)
@@ -270,13 +282,13 @@ def plot_prob_ground_state_temp_vs_step(prob_ground_state_hist, ave_temp_hist, o
     fig, ax1 = plt.subplots()
     title = 'N = {}, {}, radius = {}, T_0 = {}, r = {}'.format(num_particles, interaction_shape, radius, init_temp, cool_rate)
     color = 'tab:red'
-    ax1.set_xlabel('Time Steps - t')
+    ax1.set_xlabel('Time Steps, t')
     ax1.set_ylabel('Probability of Reaching Ground State - P(t)', color=color)
     ax1.errorbar(range(len(prob_ground_state_history)), prob_ground_state_history, yerr=prob_ground_state_errors, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel('Temperature - T', color=color)
+    ax2.set_ylabel('Temperature, T', color=color)
     ax2.plot(range(len(ave_temp_history)), ave_temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     if optimal_t:
@@ -295,13 +307,13 @@ def plot_entropy_temp_vs_step(entropy_hist, ave_temp_hist, optimal_t, step, radi
     fig, ax1 = plt.subplots()
     title = 'N = {}, {}, radius = {}, T_0 = {}, r = {}'.format(num_particles, interaction_shape, radius, init_temp, cool_rate)
     color = 'tab:red'
-    ax1.set_xlabel('Time Steps - t')
-    ax1.set_ylabel('Entropy - S(t)', color=color)
+    ax1.set_xlabel('Time Steps, t')
+    ax1.set_ylabel('Entropy, S(t)', color=color)
     ax1.plot(range(len(entropy_history)), entropy_history, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel('Temperature - T', color=color)
+    ax2.set_ylabel('Temperature, T', color=color)
     ax2.plot(range(len(ave_temp_history)), ave_temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     if optimal_t:
@@ -312,6 +324,52 @@ def plot_entropy_temp_vs_step(entropy_hist, ave_temp_hist, optimal_t, step, radi
     plt.savefig('{}/entropy_temp_vs_step_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
     plt.close()
 
+def plot_energy_entropy_vs_temp(ave_energy_vs_temp, entropy_vs_temp, radius, system_size, interaction_shape, init_temp, cool_rate, path, exact_best_energy):
+    fig, ax1 = plt.subplots(figsize=(8, 6))
+    if exact_best_energy:
+        plt.axhline(exact_best_energy, linestyle='dashed', color='b', alpha=0.5, label='brute force')
+    inverse_temps = []
+    ave_energies = []
+    entropies = []
+    errors = []
+    for temp, (ave_energy, error) in ave_energy_vs_temp.items():
+        inverse_temps.append(1.0 / temp)
+        ave_energies.append(ave_energy)
+        entropies.append(entropy_vs_temp[temp])
+        errors.append(error)
+    title = 'L = {}, {}, radius = {}, T_0 = {}, r = {}\nT_f = {}, E_min = {}'.format(system_size, interaction_shape, radius, init_temp, cool_rate, np.format_float_scientific(1.0 / inverse_temps[-1], precision=1), min(ave_energies))
+    color = 'tab:red'
+    ax1.set_xlabel('1 / Temperature, 1 / T')
+    ax1.set_xscale('log')
+    ax1.set_ylabel('Energy, E', color=color)
+    p = ax1.plot(inverse_temps, ave_energies, color=color, label='average energy, E')
+    ax1.errorbar(inverse_temps, ave_energies, yerr=errors, alpha=0.1, ecolor=p[-1].get_color())
+    ax1.tick_params(axis='y', labelcolor=color)
+    ax2 = ax1.twinx()
+    color = 'tab:blue'
+    ax2.set_ylabel('Entropy, S', color=color)
+    ax2.plot(inverse_temps, entropies, color=color, label='entropy, S')
+    ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim(bottom=0)
+    ax3 = ax1.twinx()
+    ax3.spines["right"].set_position(("axes", 1.2))
+    color = 'tab:green'
+    ax3.set_ylabel('dS / dE', color=color)
+    dS, edges, _ = binned_statistic(inverse_temps[1:], np.diff(entropies), bins=np.logspace(np.log10(inverse_temps[0]), np.log10(inverse_temps[-1]), 20))
+    dE, edges, _ = binned_statistic(inverse_temps[1:], np.diff(ave_energies), bins=np.logspace(np.log10(inverse_temps[0]), np.log10(inverse_temps[-1]), 20))
+    # # dS = np.diff(entropies)
+    # dE = np.diff(ave_energies)
+    dS_dE = dS / dE
+    ax3.plot(edges[:-1], dS_dE, color=color, label='dS / dE')
+    # ax3.plot(inverse_temps[:-1], dS_dE, color=color, label='dS / dE')
+    ax3.tick_params(axis='y', labelcolor=color)
+    ax3.set_yscale('log')
+    plt.title(title)
+    plt.figlegend()
+    fig.tight_layout()
+    plt.savefig('{}/energy_entropy_temp_vs_step_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
+    plt.close()    
+
 def plot_step_optimization(optimize_step, ave_temp_history, optimal_t, optimal_step, radius, num_particles, interaction_shape, init_temp, cool_rate, path):
     optimize_step = np.array([optimize_step[t] for t in range(1, len(optimize_step) + 1)])
     ave_temp_history = np.array([ave_temp_history[t] for t in range(1, len(ave_temp_history))])
@@ -320,13 +378,13 @@ def plot_step_optimization(optimize_step, ave_temp_history, optimal_t, optimal_s
     fig, ax1 = plt.subplots()
     title = 'N = {}, {}, radius = {}, T_0 = {}, r = {}'.format(num_particles, interaction_shape, radius, init_temp, cool_rate)
     color = 'tab:red'
-    ax1.set_xlabel('Time Steps - t')
-    ax1.set_ylabel('Quantity to Optimize - t / |log(1 - P(t)|)', color=color)
+    ax1.set_xlabel('Time Steps, t')
+    ax1.set_ylabel('Quantity to Optimize, t / |log(1 - P(t)|)', color=color)
     ax1.plot(range(1, len(optimize_step) + 1), optimize_step, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel('Temperature - T', color=color)
+    ax2.set_ylabel('Temperature, T', color=color)
     ax2.plot(range(1, len(ave_temp_history) + 1), ave_temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     if optimal_t:
@@ -344,13 +402,13 @@ def plot_temporary(energy_history, temp_history, init_temp, cool_rate, t, path, 
         energy_history = np.array(energy_history) - exact_best_energy
     fig, ax1 = plt.subplots()
     color = 'tab:red'
-    ax1.set_xlabel('Time Steps - t')
-    ax1.set_ylabel('Energy - E', color=color)
+    ax1.set_xlabel('Time Steps, t')
+    ax1.set_ylabel('Energy, E', color=color)
     ax1.plot(range(len(energy_history)), energy_history, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel('Temperature - T', color=color)
+    ax2.set_ylabel('Temperature, T', color=color)
     ax2.plot(range(len(temp_history)), temp_history, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
@@ -395,8 +453,8 @@ def plot_params_energy_vs_temp(ave_energy_vs_temp_by_params, best_params, radius
             plt.plot(inverse_temps, exact_ave_energies, label='Boltzmann distribution', linestyle='dashed')
         plt.legend()
         plt.xscale('log')
-        plt.xlabel('1 / Temperature - 1 / T')
-        plt.ylabel('Energy - E')
+        plt.xlabel('1 / Temperature, 1 / T')
+        plt.ylabel('Energy, E')
         plt.savefig('{}/param_energy_vs_temp_T0_{}.png'.format(path, init_temp))
         plt.close()
 
@@ -429,7 +487,7 @@ def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params
         x, (T_0, r), h = param_data[i]
         x_edges, y_edges = np.meshgrid(x, [0, 5])
         heatmap = axs[i].pcolormesh(x_edges, y_edges, np.array(h)[np.newaxis,:], vmin = h_min, vmax = h_max, cmap="jet")
-        label = 'T_0 = {}, r = {},\nT_f = {}'.format(T_0, round(r, 1), np.format_float_scientific(1.0 / x[-1], precision=1))
+        label = 'T_0 = {}, r = {},\nT_f = {}'.format(T_0, r, np.format_float_scientific(1.0 / x[-1], precision=1))
         if T_0 == best_params['init_temp'] and r == best_params['cool_rate']:
             label += ', optimal'
         axs[i].set_ylabel(label, rotation='horizontal', verticalalignment='center')
@@ -447,7 +505,7 @@ def plot_params_energy_vs_temp_heatmap(ave_energy_vs_temp_by_params, best_params
         X, Y = np.meshgrid(inverse_temps, [0, 5])
         axs[i].pcolormesh(X, Y, np.array(exact_ave_energies)[np.newaxis,:], vmin = h_min, vmax = h_max, cmap="jet", )
         axs[i].set_ylabel('Boltzmann distribution', rotation='horizontal', verticalalignment='center')
-        axs[i].set_xlabel('1 / Temperature - 1 / T')
+        axs[i].set_xlabel('1 / Temperature, 1 / T')
         axs[i].set_xscale('log')
         axs[i].set_yticks([])
         axs[i].set_xlim(x_min, x_max)
@@ -486,8 +544,8 @@ def plot_params_prob_ground_state_vs_temp(prob_ground_state_vs_temp_by_params, b
             plt.plot(inverse_temps, exact_probs_ground_state, label='Boltzmann distribution')
         plt.legend()
         plt.xscale('log')
-        plt.xlabel('1 / Temperature - 1 / T')
-        plt.ylabel('Probability of Reaching Ground State - P(T)')
+        plt.xlabel('1 / Temperature, 1 / T')
+        plt.ylabel('Probability of Reaching Ground State, P(T)')
         plt.savefig('{}/param_prob_ground_state_vs_temp_T0_{}.png'.format(path, init_temp))
         plt.close()
 
@@ -535,7 +593,7 @@ def plot_params_prob_ground_state_vs_temp_heatmap(prob_ground_state_vs_temp_by_p
         X, Y = np.meshgrid(inverse_temps, [0, 5])
         axs[i].pcolormesh(X, Y, np.array(exact_probs_ground_state)[np.newaxis,:], vmin = 0.0, vmax = 1.0, cmap="jet", )
         axs[i].set_ylabel('Boltzmann distribution', rotation='horizontal', verticalalignment='center')
-        axs[i].set_xlabel('1 / Temperature - 1 / T')
+        axs[i].set_xlabel('1 / Temperature, 1 / T')
         axs[i].set_xscale('log')
         axs[i].set_yticks([])
         axs[i].set_xlim(x_min, x_max)
@@ -608,8 +666,8 @@ def plot_state_probs(state_probs_t, energy_t, dims, interaction_shape, radius, a
 def plot_ground_state_fidelities_vs_time(state_probs_t_alpha, ground_states_id, angles_alpha, dims, interaction_shape, radius, path):
     fig = plt.figure()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
-    plt.xlabel('Time (t)')
-    plt.ylabel('Probability of Ground State (P)')
+    plt.xlabel('Time, t')
+    plt.ylabel('Probability of Ground State, P')
     for alpha, (state_probs_t, t) in state_probs_t_alpha.items():
         ground_state_prob_t = [np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t]
         angles = angles_alpha[alpha]
@@ -629,8 +687,8 @@ def plot_final_ground_state_fidelities_vs_alpha(state_probs_t_alpha, ground_stat
         final_ground_state_probs.append(np.sum(state_probs_t[-1][ground_states_id]))
     fig = plt.figure()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
-    plt.xlabel('Circuit Depth (alpha)')
-    plt.ylabel('Probability of Ground State (P)')
+    plt.xlabel('Circuit Depth, alpha')
+    plt.ylabel('Probability of Ground State, P')
     plt.plot(alphas, final_ground_state_probs)
     plt.ylim(bottom=0, top=1)
     fig.tight_layout()
@@ -647,8 +705,8 @@ def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_s
         beta_sums.append(beta_sum)
     fig = plt.figure()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
-    plt.xlabel('Integrated Interaction Strength * Time (beta_sum)')
-    plt.ylabel('Probability of Ground State (P)')
+    plt.xlabel('Integrated Interaction Strength * Time, beta_sum')
+    plt.ylabel('Probability of Ground State, P')
     plt.plot(beta_sums, final_ground_state_probs)
     plt.ylim(bottom=0, top=1)
     fig.tight_layout()
@@ -667,13 +725,13 @@ def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, angles_alpha, dims,
         beta_sums.append(beta_sum)
     fig, ax1 = plt.subplots()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
-    ax1.set_xlabel('Circuit Depth (alpha)')
+    ax1.set_xlabel('Circuit Depth, alpha')
     color = 'tab:red'
     ax1.set_ylabel('VQE Optimization Runtime (s)', color=color)
     ax1.plot(alphas, VQE_runtimes, color=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel('Integrated Interaction Strength * Time (beta_sum)', color=color)
+    ax2.set_ylabel('Integrated Interaction Strength * Time, beta_sum', color=color)
     ax2.plot(alphas, beta_sums, color=color)
     fig.tight_layout()
     plt.savefig('{}/VQE_runtimes_beta_sums_vs_alpha.png'.format(path), bbox_inches='tight')
@@ -683,8 +741,8 @@ def plot_energy_vs_time(energy_t, t, dims, interaction_shape, radius, alpha, pat
     states = np.array(get_states_str(dims))
     fig = plt.figure()
     plt.title('L = {}, {}, radius = {}, alpha = {}'.format(dims[0], interaction_shape, radius, alpha))
-    plt.xlabel('Time (t)')
-    plt.ylabel('Expectation Value of Hamiltonian (<H>)')
+    plt.xlabel('Time, t')
+    plt.ylabel('Expectation Value of Hamiltonian, <H>')
     plt.plot(t, energy_t)
     plt.savefig('{}/expH_in_time_alpha_{}.png'.format(path, alpha), bbox_inches='tight')
     plt.close()
@@ -693,7 +751,7 @@ def plot_energy_hamiltonians_vs_time(exp_t, H_t, B_t, t, dims, interaction_shape
     states = np.array(get_states_str(dims))
     fig, ax1 = plt.subplots()
     plt.title('L = {}, {}, radius = {}, alpha = {}'.format(dims[0], interaction_shape, radius, alpha))
-    ax1.set_xlabel('Time (t)')
+    ax1.set_xlabel('Time, t')
     ax1.set_ylabel('Expectation Value of Ising Hamiltonian (<H>)')
     ax1.plot(t, exp_t)
     ax2 = ax1.twinx()
@@ -713,8 +771,8 @@ def plot_eigval_crossing(eig_i_t, t, dims, interaction_shape, radius, path):
             eigs_t[i].append(eig_i[i])
     fig = plt.figure()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
-    plt.xlabel('Time (t)')
-    plt.ylabel('Eigenvalues Total Hamiltonian (H + B)')
+    plt.xlabel('Time, t')
+    plt.ylabel('Eigenvalues Total Hamiltonian, H + B')
     for i, eig_t in eigs_t.items():
         plt.plot(t, eig_t, label=i)
     plt.legend()

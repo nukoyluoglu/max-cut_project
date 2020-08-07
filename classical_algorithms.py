@@ -39,10 +39,13 @@ class SimulatedAnnealing(MaxCutAlgorithm):
                 ratio = delta / temp if temp >= 1e-300 else float('inf')
                 if delta <= 0 or np.random.uniform() <= np.exp(- ratio):
                     problem.switch(v)
+                    a = problem.get_objective()
+                    b = problem.get_best_objective()
+                    c = problem.get_objective_history()
                     # energy_change_at_temp += delta
                     batch_change += delta
                 problem.get_partition_history().append(copy.copy(problem.get_partition()))
-                problem.get_objective_history().append(copy.copy(problem.get_objective()))
+                problem.get_objective_history().append(problem.get_objective())
                 self.temp_history.append(temp)
             if k % BATCH_SIZE == BATCH_SIZE - 1 and batch_change == 0:
                 num_batch_no_change += 1
