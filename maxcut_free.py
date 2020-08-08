@@ -33,7 +33,6 @@ def run_trials_for_param(algorithm, interaction_fn, num_particles, exact_best_en
     sample_best_prob = None
     if not min_energy_gap:
         min_energy_gap = 0.0
-    for _ in range(NUM_PARAM_TRIALS):
         prob = initialize_problem(interaction_fn, num_particles)
         algorithm.set_cooling_schedule(init_temp, cool_rate)
         myGlobals = globals()
@@ -49,11 +48,6 @@ def run_trials_for_param(algorithm, interaction_fn, num_particles, exact_best_en
             print('WARNING: Cannot reach energy below ground state energy')
         temp_hist = algorithm.get_temp_history()
         partition_hist = prob.get_partition_history()
-        ave_runtime += runtime
-        ave_step += step
-        if best_energy < min_best_energy:
-            min_best_energy = best_energy
-            sample_best_prob = prob
         if len(temp_hist) != len(energy_hist):
             raise RuntimeError('Length of temperature and energy histories must match')
         temp_hists.append(temp_hist)
