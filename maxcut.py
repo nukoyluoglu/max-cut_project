@@ -28,10 +28,8 @@ def get_interaction_fn(interaction_shape):
     return interaction_fn
 
 def get_cooling_schedules():
-    # init_temps = np.array([0.1, 1.0, 10.0])
-    # cool_rates = np.array([0.9979, 0.9989, 0.9999])
-    init_temps = np.array([1.0])
-    cool_rates = np.array([0.9999])
+    init_temps = np.array([0.1, 1.0, 10.0])
+    cool_rates = np.array([0.9979, 0.9989, 0.9999])
     return list(itertools.product(init_temps, cool_rates))
 
 def initialize_problem(structure, system_size, fill, interaction_shape, interaction_radius):

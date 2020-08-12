@@ -11,6 +11,8 @@ import numpy as np
 import time
 import os
 
+os.environ['OMP_NUM_THREADS'] = '4'
+
 # returns expected value of operator
 def expectation(psi, op):
     return (np.dot(np.conjugate(psi), op @ psi) / np.dot(np.conjugate(psi), psi))
@@ -122,10 +124,10 @@ def QAOA(H, B, alpha, dims, title, DTWA=None):
 
 if __name__ == '__main__':
 
-    for L in range(2, 5):
+    for L in range(4, 5):
         # setup system
         dims = (L, L)
-        prob = maxcut.initialize_problem(experiment.step_fn, 1, *dims)
+        prob = maxcut.initialize_problem('square', dims, 1.0, 'step_fn', 1.0)
         N = prob.get_num_vertices()
         basis = spin_basis_general(N)
 
@@ -158,7 +160,7 @@ if __name__ == '__main__':
         state_probs_t_alpha = {}
         angles_alpha = {}
         VQE_runtimes_alpha = {}
-        for alpha in range(1, 16):
+        for alpha in range(1, 11):
             t, angles, state_probs_t, VQE_runtime = QAOA(H, B, alpha, dims, title)
             state_probs_t_alpha[alpha] = (state_probs_t, t)
             angles_alpha[alpha] = angles

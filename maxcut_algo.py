@@ -15,7 +15,7 @@ import csv
 import argparse
 import multiprocessing as mp
 
-NUM_PARAM_TRIALS = 1000
+NUM_PARAM_TRIALS = 100
 
 def collect_param_stats(temp_hists, energy_hists, ground_states_found, partition_hists, exact_min_energy):
     all_temps_hist = {}
@@ -61,6 +61,8 @@ def get_param_stats_per_temp(temp, all_energies_vs_temp, all_partitions_vs_temp,
     total_partitions_at_temp = np.sum(counts_partitions_at_temp)
     probs_partitions_at_temp = counts_partitions_at_temp / total_partitions_at_temp
     stat_vs_temp['entropy'] = np.sum(np.multiply(- probs_partitions_at_temp, np.log(probs_partitions_at_temp)))
+    stat_vs_temp['ave_prob_ground_state'] = None
+    stat_vs_temp['err_prob_ground_state'] = None
     if all_ground_states_found_vs_temp:
         probs_ground_state_at_temp = all_ground_states_found_vs_temp[temp]
         stat_vs_temp['ave_prob_ground_state'] = np.mean(probs_ground_state_at_temp)
@@ -95,6 +97,12 @@ def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exac
                         ground_state_found = True
                     all_ground_states_found_hist_from_entropy.setdefault(t, []).append(float(ground_state_found))
     for stat_vs_t in stats_vs_t:
+        stat_vs_t['ave_prob_ground_state'] = None
+        stat_vs_t['err_prob_ground_state'] = None
+        stat_vs_t['total_iter'] = None
+        stat_vs_t['ave_prob_ground_state_from_entropy'] = None
+        stat_vs_t['err_prob_ground_state_from_entropy'] = None
+        stat_vs_t['total_iter_from_entropy'] = None
         t = stat_vs_t['t']
         if exact_min_energy and all_ground_states_found_hist:
             probs_ground_state_at_t = all_ground_states_found_hist[t]
@@ -143,7 +151,6 @@ def simulate(structure, system_size, fill, interaction_shape, interaction_radius
 def run_trials(structure, system_size, fill, interaction_shape, interaction_radius, algorithm, ensemble, path, exact_min_energy, exact_min_gap, init_temp, cool_rate, sample_best_probs):
     param_sols = []
     for i in range(NUM_PARAM_TRIALS):
-        print(i)
         param_sols.append(simulate(structure, system_size, fill, interaction_shape, interaction_radius, algorithm, init_temp, cool_rate, exact_min_energy, exact_min_gap))
 
     steps, temp_hists, energy_hists, partition_hists, ground_states_found, min_energies, probs = np.array(param_sols).T
@@ -168,16 +175,14 @@ def run_trials(structure, system_size, fill, interaction_shape, interaction_radi
     prob_ground_state_per_run = None
     t_opt_exact = None
     
-    exact = 'total_iter' in stats_vs_t[0]
-    from_entropy = 'total_iter_from_entropy' in stats_vs_t[0]
     MT_exact = {}
     MT_from_entropy = {}
     for stat_vs_t in stats_vs_t:
         t = stat_vs_t['t']
         if t == 0: continue
-        if exact:
+        if stat_vs_t['total_iter']:
             MT_exact[t] = stat_vs_t['total_iter']
-        if from_entropy:
+        if stat_vs_t['total_iter_from_entropy']:
             MT_from_entropy[t] = stat_vs_t['total_iter_from_entropy']
     if len(MT_exact) > 0:
         t_opt_exact = min(MT_exact, key=MT_exact.get)

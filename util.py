@@ -591,6 +591,27 @@ def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_s
     plt.savefig('{}/ground_state_fidelities_vs_beta_sum.png'.format(path), bbox_inches='tight')
     plt.close()
 
+def plot_MT_vs_alpha(state_probs_t_alpha, ground_states_id, angles_alpha, dims, interaction_shape, radius, path):
+    alphas = []
+    MTs = []
+    for alpha, (state_probs_t, t) in state_probs_t_alpha.items():
+        P = np.array([np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t])
+        P_opt = 1.0 - 1.0 / np.exp(1)
+        MT_step = np.array([np.divide(t, np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else t for t in range(len(P))])
+        stop_step = np.argmin(MT_step)
+        MT = get_beta_sum(angles_alpha[alpha][:stop_step])
+        alphas.append(alpha)
+        MTs.append(MT)
+    fig = plt.figure()
+    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.xlabel('Circuit Depth, alpha)')
+    plt.ylabel('Total Integrated Interaction Strength * Time (M * T), beta_sum')
+    plt.plot(alphas, MTs)
+    plt.ylim(bottom=0)
+    fig.tight_layout()
+    plt.savefig('{}/MT_vs_alpha.png'.format(path), bbox_inches='tight')
+    plt.close()
+
 def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, angles_alpha, dims, interaction_shape, radius, path):
     alphas = []
     VQE_runtimes = []

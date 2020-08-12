@@ -16,14 +16,18 @@ if __name__ == '__main__':
         dict_reader = csv.DictReader(input_file)
         for row in dict_reader:
             interaction_radius = 'NA' if row['interaction_radius'] == 'NA' else float(row['interaction_radius'])
-            init_temp = float(row['init_temp'])
-            cool_rate = float(row['cool_rate'])
-            step_from_exact = float(row['step_from_exact'])
-            step_from_entropy = float(row['step_from_entropy'])
-            prob_ground_state_per_run = float(row['prob_ground_state_per_run'])
-            search_runtime = float(row['search_runtime'])
-            exact_min_energy = float(row['exact_min_energy'])
-            system_sols[interaction_radius] = (dict(init_temp=init_temp, cool_rate=cool_rate, step_from_exact=step_from_exact, step_from_entropy=step_from_entropy, prob_ground_state_per_run=prob_ground_state_per_run, search_runtime=search_runtime, exact_min_energy=exact_min_energy))
+            system_sols[interaction_radius] = {}
+            system_sols[interaction_radius]['init_temp'] = float(row['init_temp'])
+            system_sols[interaction_radius]['cool_rate'] = float(row['cool_rate'])
+            if row['step_from_exact']:
+                system_sols[interaction_radius]['step_from_exact'] = float(row['step_from_exact'])
+            if row['step_from_entropy']:
+                system_sols[interaction_radius]['step_from_entropy'] = float(row['step_from_entropy'])
+            if row['prob_ground_state_per_run']:
+                system_sols[interaction_radius]['prob_ground_state_per_run'] = float(row['prob_ground_state_per_run'])
+            system_sols[interaction_radius]['search_runtime'] = float(row['search_runtime'])
+            if row['exact_min_energy']:
+                system_sols[interaction_radius]['exact_min_energy'] = float(row['exact_min_energy'])
 
     if structure != 'free' and interaction_shape != 'random':
         util.plot_steps_vs_radius(system_sols, system_size[0], system_size[1], interaction_shape, algo_dir_path)
@@ -42,13 +46,18 @@ if __name__ == '__main__':
             for row in dict_reader:
                 init_temp = float(row['init_temp'])
                 cool_rate = float(row['cool_rate'])
-                min_energy = float(row['min_energy'])
-                min_energy_from_entropy = float(row['min_energy_from_entropy'])
-                step_from_exact = float(row['step_from_exact'])
-                step_from_entropy = float(row['step_from_entropy'])
-                step_per_run = int(row['step_per_run'])
-                prob_ground_state_per_run = float(row['prob_ground_state_per_run'])
-                param_results[init_temp][cool_rate] = dict(min_energy=min_energy, min_energy_from_entropy=min_energy_from_entropy, step_from_exact=step_from_exact, step_from_entropy=step_from_entropy, step_per_run=step_per_run, prob_ground_state_per_run=prob_ground_state_per_run)
+                param_results[init_temp][cool_rate] = {}
+                param_results[init_temp][cool_rate]['min_energy'] = float(row['min_energy'])
+                if row['min_energy_from_entropy']:
+                    param_results[init_temp][cool_rate]['min_energy_from_entropy'] = float(row['min_energy_from_entropy'])
+                if row['step_from_exact']:
+                    param_results[init_temp][cool_rate]['step_from_exact'] = float(row['step_from_exact'])
+                if row['step_from_entropy']:
+                    param_results[init_temp][cool_rate]['step_from_entropy'] = float(row['step_from_entropy'])
+                if row['step_per_run']:
+                    param_results[init_temp][cool_rate]['step_per_run'] = int(row['step_per_run'])
+                if row['prob_ground_state_per_run']:
+                    param_results[init_temp][cool_rate]['prob_ground_state_per_run'] = float(row['prob_ground_state_per_run'])
     
         for init_temp, cool_rate in maxcut.get_cooling_schedules():
             param_result = param_results[init_temp][cool_rate]
@@ -57,31 +66,41 @@ if __name__ == '__main__':
             with open('{}/stats_vs_temp_T_0_{}_r_{}.csv'.format(algo_radius_dir_path, init_temp, cool_rate), 'r') as input_file:
                 dict_reader = csv.DictReader(input_file)
                 for row in dict_reader:
-                    temp = float(row['temp'])
-                    ave_energy = float(row['ave_energy'])
-                    err_energy = float(row['err_energy'])
-                    entropy = float(row['entropy'])
-                    ave_prob_ground_state = float(row['ave_prob_ground_state'])
-                    err_prob_ground_state = float(row['err_prob_ground_state'])
-                    stats_vs_temp.append(dict(temp=temp, ave_energy=ave_energy, err_energy=err_energy, entropy=entropy, ave_prob_ground_state=ave_prob_ground_state, err_prob_ground_state=err_prob_ground_state))
+                    stat_vs_temp = {}
+                    stat_vs_temp['temp'] = float(row['temp'])
+                    stat_vs_temp['ave_energy'] = float(row['ave_energy'])
+                    stat_vs_temp['err_energy'] = float(row['err_energy'])
+                    stat_vs_temp['entropy'] = float(row['entropy'])
+                    if row['ave_prob_ground_state']:
+                        stat_vs_temp['ave_prob_ground_state'] = float(row['ave_prob_ground_state'])
+                    if row['err_prob_ground_state']:
+                        stat_vs_temp['err_prob_ground_state'] = float(row['err_prob_ground_state'])
+                    stats_vs_temp.append(stat_vs_temp)
             param_result['stats_vs_temp'] = stats_vs_temp
 
             stats_vs_t = []
             with open('{}/stats_vs_t_T_0_{}_r_{}.csv'.format(algo_radius_dir_path, init_temp, cool_rate), 'r') as input_file:
                 dict_reader = csv.DictReader(input_file)
                 for row in dict_reader:
-                    t = float(row['t'])
-                    ave_temp = float(row['ave_temp'])
-                    ave_energy = float(row['ave_energy'])
-                    err_energy = float(row['err_energy'])
-                    entropy = float(row['entropy'])
-                    ave_prob_ground_state = float(row['ave_prob_ground_state'])
-                    err_prob_ground_state = float(row['err_prob_ground_state'])
-                    total_iter = float(row['total_iter'])
-                    ave_prob_ground_state_from_entropy = float(row['ave_prob_ground_state_from_entropy'])
-                    err_prob_ground_state_from_entropy = float(row['err_prob_ground_state_from_entropy'])
-                    total_iter_from_entropy = float(row['total_iter_from_entropy'])
-                    stats_vs_t.append(dict(t=t, ave_temp=ave_temp, ave_energy=ave_energy, err_energy=err_energy, entropy=entropy, min_energy=min_energy, ave_prob_ground_state=ave_prob_ground_state, err_prob_ground_state=err_prob_ground_state, total_iter=total_iter, min_energy_from_entropy=min_energy_from_entropy, ave_prob_ground_state_from_entropy=ave_prob_ground_state_from_entropy, err_prob_ground_state_from_entropy=err_prob_ground_state_from_entropy, total_iter_from_entropy=total_iter_from_entropy))
+                    stat_vs_t = {}
+                    stat_vs_t['t'] = float(row['t'])
+                    stat_vs_t['ave_temp'] = float(row['ave_temp'])
+                    stat_vs_t['ave_energy'] = float(row['ave_energy'])
+                    stat_vs_t['err_energy'] = float(row['err_energy'])
+                    stat_vs_t['entropy'] = float(row['entropy'])
+                    if row['ave_prob_ground_state']:
+                        stat_vs_t['ave_prob_ground_state'] = float(row['ave_prob_ground_state'])
+                    if row['err_prob_ground_state']:
+                        stat_vs_t['err_prob_ground_state'] = float(row['err_prob_ground_state'])
+                    if row['total_iter']:
+                        stat_vs_t['total_iter'] = float(row['total_iter'])
+                    if row['ave_prob_ground_state_from_entropy']:
+                        stat_vs_t['ave_prob_ground_state_from_entropy'] = float(row['ave_prob_ground_state_from_entropy'])
+                    if row['err_prob_ground_state_from_entropy']:
+                        stat_vs_t['err_prob_ground_state_from_entropy'] = float(row['err_prob_ground_state_from_entropy'])
+                    if row['total_iter_from_entropy']:
+                        stat_vs_t['total_iter_from_entropy'] = float(row['total_iter_from_entropy'])
+                    stats_vs_t.append(stat_vs_t)
             param_result['stats_vs_t'] = stats_vs_t
             
             util.plot_energy_temp_vs_step(stats_vs_t, system_size, interaction_shape, interaction_radius, init_temp, cool_rate, algo_radius_dir_path, system_sol['exact_min_energy'])

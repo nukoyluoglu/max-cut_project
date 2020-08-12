@@ -27,14 +27,18 @@ if __name__ == '__main__':
                 dict_reader = csv.DictReader(input_file)
                 for row in dict_reader:
                     interaction_radius = 'NA' if row['interaction_radius'] == 'NA' else float(row['interaction_radius'])
-                    init_temp = float(row['init_temp'])
-                    cool_rate = float(row['cool_rate'])
-                    step_from_exact = float(row['step_from_exact'])
-                    step_from_entropy = float(row['step_from_entropy'])
-                    prob_ground_state_per_run = float(row['prob_ground_state_per_run'])
-                    search_runtime = float(row['search_runtime'])
-                    exact_min_energy = float(row['exact_min_energy'])
-                    algo_system_sols[interaction_radius] = (dict(init_temp=init_temp, cool_rate=cool_rate, step_from_exact=step_from_exact, step_from_entropy=step_from_entropy, prob_ground_state_per_run=prob_ground_state_per_run, search_runtime=search_runtime, exact_min_energy=exact_min_energy))
+                    algo_system_sols[interaction_radius] = {}
+                    algo_system_sols[interaction_radius]['init_temp'] = float(row['init_temp'])
+                    algo_system_sols[interaction_radius]['cool_rate'] = float(row['cool_rate'])
+                    if row['step_from_exact']:
+                        algo_system_sols[interaction_radius]['step_from_exact'] = float(row['step_from_exact'])
+                    if row['step_from_entropy']:
+                        algo_system_sols[interaction_radius]['step_from_entropy'] = float(row['step_from_entropy'])
+                    if row['prob_ground_state_per_run']:
+                        algo_system_sols[interaction_radius]['prob_ground_state_per_run'] = float(row['prob_ground_state_per_run'])
+                    algo_system_sols[interaction_radius]['search_runtime'] = float(row['search_runtime'])
+                    if row['exact_min_energy']:
+                        algo_system_sols[interaction_radius]['exact_min_energy'] = float(row['exact_min_energy'])
             algo_sols[system_size] = algo_system_sols
 
             exact_dir_path = '{}/exact_sols_{}'.format(parent_dir_path, system_size)
