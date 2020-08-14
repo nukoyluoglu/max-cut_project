@@ -58,8 +58,8 @@ if __name__ == '__main__':
                     param_results[init_temp][cool_rate]['step_per_run'] = int(row['step_per_run'])
                 if row['prob_ground_state_per_run']:
                     param_results[init_temp][cool_rate]['prob_ground_state_per_run'] = float(row['prob_ground_state_per_run'])
-    
-        for init_temp, cool_rate in maxcut.get_cooling_schedules():
+         
+        for init_temp, cool_rate in maxcut.get_cooling_schedules(problem=maxcut.initialize_problem(structure, system_size, fill, interaction_shape, interaction_radius)):
             param_result = param_results[init_temp][cool_rate]
 
             stats_vs_temp = []

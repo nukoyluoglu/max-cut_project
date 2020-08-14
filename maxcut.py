@@ -27,9 +27,17 @@ def get_interaction_fn(interaction_shape):
         interaction_fn = experiment.random
     return interaction_fn
 
-def get_cooling_schedules():
-    init_temps = np.array([0.1, 1.0, 10.0])
-    cool_rates = np.array([0.9979, 0.9989, 0.9999])
+def get_cooling_schedules(problem=None):
+    if problem:
+        switch_positive_deltas = [problem.get_switch_energy_change(v) for v in problem.get_vertices() if problem.get_switch_energy_change(v) > 0]
+        if len(switch_positive_deltas) > 0:
+            init_temp = np.power(10, np.ceil(np.log10(max(switch_positive_deltas))))
+        else:
+            init_temp = 10.0
+        init_temps = [init_temp]
+    else:
+        init_temps = np.array([0.1, 1.0, 10.0])
+    cool_rates = np.array([0.997, 0.998, 0.999])
     return list(itertools.product(init_temps, cool_rates))
 
 def initialize_problem(structure, system_size, fill, interaction_shape, interaction_radius):

@@ -354,20 +354,17 @@ def plot_energy_entropy_vs_temp(stats_vs_temp, system_size, interaction_shape, i
     ax3 = ax1.twinx()
     ax3.spines["right"].set_position(("axes", 1.2))
     color = 'tab:green'
-    ax3.set_ylabel('dS / dE', color=color)
+    ax3.set_ylabel('T * dS / dE', color=color)
     dS, edges, _ = binned_statistic(inverse_temps[1:], np.diff(entropies), bins=np.logspace(np.log10(inverse_temps[0]), np.log10(inverse_temps[-1]), 20))
     dE, edges, _ = binned_statistic(inverse_temps[1:], np.diff(ave_energies), bins=np.logspace(np.log10(inverse_temps[0]), np.log10(inverse_temps[-1]), 20))
-    # # dS = np.diff(entropies)
-    # dE = np.diff(ave_energies)
     dS_dE = dS / dE
-    ax3.plot(edges[:-1], dS_dE, color=color, label='dS / dE')
-    # ax3.plot(inverse_temps[:-1], dS_dE, color=color, label='dS / dE')
+    ax3.plot(edges[:-1], np.divide(dS_dE, edges[:-1]), color=color, label='T * dS / dE')
     ax3.tick_params(axis='y', labelcolor=color)
-    ax3.set_yscale('log')
+    ax3.set_ylim(bottom=0)
     plt.title(title)
     plt.figlegend()
     fig.tight_layout()
-    plt.savefig('{}/energy_entropy_temp_vs_step_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
+    plt.savefig('{}/energy_entropy_vs_temp_T0_{}_r_{}.png'.format(path, init_temp, cool_rate))
     plt.close()    
 
 def plot_temporary(energy_history, temp_history, init_temp, cool_rate, t, path, exact_best_energy):
@@ -541,8 +538,8 @@ def plot_state_probs(state_probs_t, energy_t, dims, interaction_shape, radius, a
     # sample spin lattice in ground state
     print(np.reshape(np.array([int(spin) for spin in states[ground_states[0]]]), dims))
 
-def plot_ground_state_fidelities_vs_time(state_probs_t_alpha, ground_states_id, angles_alpha, dims, interaction_shape, radius, path):
-    fig = plt.figure()
+def plot_ground_state_fidelities_vs_time(state_probs_t_alpha, ground_states_id, angles_alpha, MT_alpha, best_alpha, dims, interaction_shape, radius, path):
+    fig = plt.figure(figsize=(12, 6))
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
     plt.xlabel('Time, t')
     plt.ylabel('Probability of Ground State, P')
@@ -550,9 +547,14 @@ def plot_ground_state_fidelities_vs_time(state_probs_t_alpha, ground_states_id, 
         ground_state_prob_t = [np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t]
         angles = angles_alpha[alpha]
         beta_sum = get_beta_sum(angles)
-        plt.plot(t, ground_state_prob_t, label='alpha = {}, beta_sum = {}'.format(alpha, beta_sum))
+        label='alpha = {}, beta_sum = {}'.format(alpha, beta_sum)
+        if alpha == best_alpha:
+            label += ', optimal'
+        p = plt.plot(t, ground_state_prob_t, label=label)
+        MTs = MT_alpha[alpha]
+        plt.axvline(MT_alpha[alpha][1], label={'T = {}, M * T = {}'.format(MT_alpha[alpha][1], MT_alpha[alpha][0])}, color=p[0].get_color(), linestyle='dashed')
     plt.ylim(bottom=0, top=1)
-    plt.legend()
+    plt.legend(loc='upper left', bbox_to_anchor=(1.0, 1.0))
     fig.tight_layout()
     plt.savefig('{}/ground_state_fidelities_vs_time.png'.format(path), bbox_inches='tight')
     plt.close()
@@ -570,7 +572,7 @@ def plot_final_ground_state_fidelities_vs_alpha(state_probs_t_alpha, ground_stat
     plt.plot(alphas, final_ground_state_probs)
     plt.ylim(bottom=0, top=1)
     fig.tight_layout()
-    plt.savefig('{}/ground_state_fidelities_vs_alpha.png'.format(path), bbox_inches='tight')
+    plt.savefig('{}/final_ground_state_fidelities_vs_alpha.png'.format(path), bbox_inches='tight')
     plt.close()
 
 def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_states_id, angles_alpha, dims, interaction_shape, radius, path):
@@ -588,40 +590,44 @@ def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_s
     plt.plot(beta_sums, final_ground_state_probs)
     plt.ylim(bottom=0, top=1)
     fig.tight_layout()
-    plt.savefig('{}/ground_state_fidelities_vs_beta_sum.png'.format(path), bbox_inches='tight')
+    plt.savefig('{}/final_ground_state_fidelities_vs_beta_sum.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def plot_MT_vs_alpha(state_probs_t_alpha, ground_states_id, angles_alpha, dims, interaction_shape, radius, path):
+def get_MT(state_probs_t, ground_states_id, angles=[]):
+    P = np.array([np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t])
+    P_opt = 1.0 - 1.0 / np.exp(1)
+    if len(angles) > 0:
+        MT = np.array([np.divide(get_beta_sum(angles[:t]), np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else t for t in range(len(P))])
+    else:
+        MT = np.array([np.divide(t, np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else t for t in range(len(P))])
+    step_stop = np.argmin(MT[1:]) + 1
+    return MT[step_stop], step_stop
+
+def plot_MT_vs_alpha(MT_alpha, dims, interaction_shape, radius, path):
     alphas = []
     MTs = []
-    for alpha, (state_probs_t, t) in state_probs_t_alpha.items():
-        P = np.array([np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t])
-        P_opt = 1.0 - 1.0 / np.exp(1)
-        MT_step = np.array([np.divide(t, np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else t for t in range(len(P))])
-        stop_step = np.argmin(MT_step)
-        MT = get_beta_sum(angles_alpha[alpha][:stop_step])
+    for alpha, (MT, step_stop) in MT_alpha.items():
         alphas.append(alpha)
         MTs.append(MT)
     fig = plt.figure()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
     plt.xlabel('Circuit Depth, alpha)')
-    plt.ylabel('Total Integrated Interaction Strength * Time (M * T), beta_sum')
+    plt.ylabel('M * T (T = [1, 2 * alpha])')
+    # plt.ylabel('M * T (T = Total Integrated Interaction Strength * Time, beta_sum)')
     plt.plot(alphas, MTs)
-    plt.ylim(bottom=0)
+    plt.ylim(bottom=0, top=1.5 * max(MTs))
     fig.tight_layout()
     plt.savefig('{}/MT_vs_alpha.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, angles_alpha, dims, interaction_shape, radius, path):
+def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, VQE_beta_sum, dims, interaction_shape, radius, path):
     alphas = []
     VQE_runtimes = []
-    beta_sums = []
+    VQE_beta_sums = []
     for alpha, VQE_runtime in VQE_runtimes_alpha.items():
         alphas.append(alpha)
         VQE_runtimes.append(VQE_runtime)
-        angles = angles_alpha[alpha]
-        beta_sum = get_beta_sum(angles)
-        beta_sums.append(beta_sum)
+        VQE_beta_sums.append(VQE_beta_sum[alpha])
     fig, ax1 = plt.subplots()
     plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
     ax1.set_xlabel('Circuit Depth, alpha')
@@ -630,8 +636,8 @@ def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, angles_alpha, dims,
     ax1.plot(alphas, VQE_runtimes, color=color)
     ax2 = ax1.twinx()
     color = 'tab:blue'
-    ax2.set_ylabel('Integrated Interaction Strength * Time, beta_sum', color=color)
-    ax2.plot(alphas, beta_sums, color=color)
+    ax2.set_ylabel('VQE Total Integrated Interaction Strength * Time, beta_sum', color=color)
+    ax2.plot(alphas, VQE_beta_sums, color=color)
     fig.tight_layout()
     plt.savefig('{}/VQE_runtimes_beta_sums_vs_alpha.png'.format(path), bbox_inches='tight')
     plt.close()
@@ -657,6 +663,7 @@ def plot_energy_hamiltonians_vs_time(exp_t, H_t, B_t, t, dims, interaction_shape
     ax2.set_ylabel('Ratio of Total Hamiltonian')
     ax2.step(t, H_t, alpha=0.5, label='Ising Hamiltonian (H)')
     ax2.step(t, B_t, alpha=0.5, label='Reference Hamiltonian (B)')
+    ax2.set_ylim(bottom=0, top=1)
     ax2.legend()
     fig.tight_layout()
     plt.savefig('{}/<H>_H_B_in_time_alpha_{}.png'.format(path, alpha), bbox_inches='tight')

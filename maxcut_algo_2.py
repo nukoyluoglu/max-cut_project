@@ -15,7 +15,7 @@ import csv
 import argparse
 import multiprocessing as mp
 
-NUM_PARAM_TRIALS = 100
+NUM_PARAM_TRIALS = 1000
 
 def collect_param_stats(temp_hists, energy_hists, ground_states_found, partition_hists, exact_min_energy):
     all_temps_hist = {}
@@ -34,7 +34,7 @@ def collect_param_stats(temp_hists, energy_hists, ground_states_found, partition
     for i in range(NUM_PARAM_TRIALS):
         energy_hist = energy_hists[i]
         extend_iter = longest_run - len(energy_hist)
-        energy_extend = energy_hist[-1]
+        energy_extend = np.mean(energy_hist[-1000:])
         energy_hist.extend([energy_extend for _ in range(extend_iter)])
         ground_state_found = ground_states_found[i]
         partition_hist = [list(d.values()) for d in partition_hists[i]]
@@ -82,10 +82,10 @@ def get_param_stats_per_t(t, all_temps_hist, all_energies_hist, all_partitions_h
     stat_vs_t['entropy'] = np.sum(np.multiply(- probs_partitions_at_t, np.log(probs_partitions_at_t)))
     return stat_vs_t
 
-def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exact_min_energy):
+def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exact_min_energy, entropy_approx=True):
     all_ground_states_found_hist_from_entropy = None
     min_energy_from_entropy = None
-    if interaction_shape == 'random': # 2 ground states, ground state entropy = ln(2)
+    if interaction_shape == 'random' and not entropy_approx: # 2 ground states, ground state entropy = ln(2)
         t_converge = [stat_vs_t['t'] for stat_vs_t in stats_vs_t if np.round(stat_vs_t['entropy'], 8) <= np.round(np.log(2), 8)]
         if len(t_converge) > 0:
             min_energy_from_entropy = min([stat_vs_t['ave_energy'] for stat_vs_t in stats_vs_t if stat_vs_t['t'] in t_converge])
@@ -126,6 +126,15 @@ def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exac
                 stat_vs_t['total_iter_from_entropy'] = np.divide(t, np.abs(np.log(1.0 - P))) # absolute value to avoid sign change due to dropping P_* term
             else: 
                 stat_vs_t['total_iter_from_entropy'] = t
+        else:
+            # compute M * T using entropy as heuristic: S = E[- log P] = - log P
+            P_opt = 1.0 - 1.0 / np.exp(1)
+            P = np.exp(- stat_vs_t['entropy'])
+            if P < P_opt:
+                stat_vs_t['total_iter_from_entropy'] = np.divide(t, np.abs(np.log(1.0 - P))) # absolute value to avoid sign change due to dropping P_* term
+            else: 
+                stat_vs_t['total_iter_from_entropy'] = t
+
     return min_energy_from_entropy
 
 def simulate(structure, system_size, fill, interaction_shape, interaction_radius, algorithm, init_temp, cool_rate, exact_min_energy, exact_min_gap):

@@ -21,6 +21,8 @@ if __name__ == '__main__':
         dir_path = os.path.join(parent_dir_path, dir_name)
         if dir_name.startswith('algo_sols_') and not dir_name.endswith('summary') and os.path.isdir(dir_path):
             system_size = dir_name[10:]
+            if ',' not in system_size:
+                system_size = int(system_size)
 
             algo_system_sols = {}
             with open('{}/system_sols.csv'.format(dir_path), 'r') as input_file:
@@ -30,15 +32,11 @@ if __name__ == '__main__':
                     algo_system_sols[interaction_radius] = {}
                     algo_system_sols[interaction_radius]['init_temp'] = float(row['init_temp'])
                     algo_system_sols[interaction_radius]['cool_rate'] = float(row['cool_rate'])
-                    if row['step_from_exact']:
-                        algo_system_sols[interaction_radius]['step_from_exact'] = float(row['step_from_exact'])
-                    if row['step_from_entropy']:
-                        algo_system_sols[interaction_radius]['step_from_entropy'] = float(row['step_from_entropy'])
-                    if row['prob_ground_state_per_run']:
-                        algo_system_sols[interaction_radius]['prob_ground_state_per_run'] = float(row['prob_ground_state_per_run'])
+                    algo_system_sols[interaction_radius]['step_from_exact'] = float(row['step_from_exact']) if row['step_from_exact'] else None
+                    algo_system_sols[interaction_radius]['step_from_entropy'] = float(row['step_from_entropy']) if row['step_from_entropy'] else None
+                    algo_system_sols[interaction_radius]['prob_ground_state_per_run'] = float(row['prob_ground_state_per_run']) if row['prob_ground_state_per_run'] else None
                     algo_system_sols[interaction_radius]['search_runtime'] = float(row['search_runtime'])
-                    if row['exact_min_energy']:
-                        algo_system_sols[interaction_radius]['exact_min_energy'] = float(row['exact_min_energy'])
+                    algo_system_sols[interaction_radius]['exact_min_energy'] = float(row['exact_min_energy']) if row['exact_min_energy'] else None
             algo_sols[system_size] = algo_system_sols
 
             exact_dir_path = '{}/exact_sols_{}'.format(parent_dir_path, system_size)

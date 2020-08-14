@@ -26,41 +26,33 @@ class SimulatedAnnealing(MaxCutAlgorithm):
         self.no_change_treshold_cooling = NO_CHANGE_TRESHOLD_COOLING
 
     def solve(self, problem):
-        # num_temp_no_change = 0
-        num_batch_no_change = 0
-        batch_change = 0
+        # num_batch_no_change = 0
+        # batch_change = 0
         self.temp_history = [self.init_temp]
         for k in range(self.max_num_iter_cooling):
             temp = self.init_temp * np.power(self.cool_rate, k)
-            # energy_change_at_temp = 0
             for _ in range(self.max_num_iter_equilibrium):
                 v = problem.get_vertices()[np.random.choice(problem.get_num_vertices())]
                 delta = problem.get_switch_energy_change(v)
                 ratio = delta / temp if temp >= 1e-300 else float('inf')
                 if delta <= 0 or np.random.uniform() <= np.exp(- ratio):
                     problem.switch(v)
-                    a = problem.get_objective()
-                    b = problem.get_best_objective()
-                    c = problem.get_objective_history()
-                    # energy_change_at_temp += delta
-                    batch_change += delta
+                    # batch_change += delta
                 problem.get_partition_history().append(copy.copy(problem.get_partition()))
                 problem.get_objective_history().append(problem.get_objective())
                 self.temp_history.append(temp)
-            if k % BATCH_SIZE == BATCH_SIZE - 1 and batch_change == 0:
-                num_batch_no_change += 1
-                batch_change = 0
-            elif k % BATCH_SIZE == BATCH_SIZE - 1:
-                num_batch_no_change = 0
-                batch_change = 0
-            if num_batch_no_change >= self.no_change_treshold_cooling:
-                break
-
-            # if energy_change_at_temp == 0:
-            #     num_temp_no_change += 1
-            # else:
-            #     num_temp_no_change = 0
-            # if num_temp_no_change >= self.no_change_treshold_cooling:
+            # if k % BATCH_SIZE == BATCH_SIZE - 1 and batch_change == 0:
+            #     num_batch_no_change += 1
+            #     batch_change = 0
+            # elif k % BATCH_SIZE == BATCH_SIZE - 1:
+            #     num_batch_no_change = 0
+            #     batch_change = 0
+            switch_positive_deltas = [problem.get_switch_energy_change(v) for v in problem.get_vertices() if problem.get_switch_energy_change(v) > 0]
+            if len(switch_positive_deltas) > 0:
+                final_temp = np.power(10, np.floor(np.log10(- min(switch_positive_deltas) / np.log(0.0001))))
+                if temp <= final_temp:
+                    break
+            # if num_batch_no_change >= self.no_change_treshold_cooling:
             #     break
             
     def set_cooling_schedule(self, init_temp, cool_rate):
