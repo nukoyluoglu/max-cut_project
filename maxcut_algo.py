@@ -15,7 +15,7 @@ import csv
 import argparse
 import multiprocessing as mp
 
-NUM_PARAM_TRIALS = 100
+NUM_PARAM_TRIALS = 1000
 
 def collect_param_stats(temp_hists, energy_hists, ground_states_found, partition_hists, exact_min_energy):
     all_temps_hist = {}
@@ -37,17 +37,18 @@ def collect_param_stats(temp_hists, energy_hists, ground_states_found, partition
         energy_extend = energy_hist[-1]
         energy_hist.extend([energy_extend for _ in range(extend_iter)])
         ground_state_found = ground_states_found[i]
+        ground_state_found.extend([ground_state_found[-1] for _ in range(extend_iter)])
         partition_hist = [list(d.values()) for d in partition_hists[i]]
         partition_hist.extend([partition_hist[-1] for _ in range(extend_iter)])
         for t in range(len(temp_hist)):
             temp = temp_hist[t]
             all_energies_vs_temp.setdefault(temp, []).append(energy_hist[t])
             if exact_min_energy:
-                all_ground_states_found_vs_temp.setdefault(temp, []).append(float(t >= ground_state_found))
+                all_ground_states_found_vs_temp.setdefault(temp, []).append(ground_state_found[t])
             all_energies_hist.setdefault(t, []).append(energy_hist[t])
             all_temps_hist.setdefault(t, []).append(temp)
             if exact_min_energy:
-                all_ground_states_found_hist.setdefault(t, []).append(float(t >= ground_state_found))
+                all_ground_states_found_hist.setdefault(t, []).append(ground_state_found[t])
             all_partitions_vs_temp.setdefault(temp, []).append(partition_hist[t])
             all_partitions_hist.setdefault(t, []).append(partition_hist[t])
     return all_temps_hist, all_energies_hist, all_partitions_hist, all_ground_states_found_hist, all_energies_vs_temp, all_partitions_vs_temp, all_ground_states_found_vs_temp
@@ -82,20 +83,20 @@ def get_param_stats_per_t(t, all_temps_hist, all_energies_hist, all_partitions_h
     stat_vs_t['entropy'] = np.sum(np.multiply(- probs_partitions_at_t, np.log(probs_partitions_at_t)))
     return stat_vs_t
 
-def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exact_min_energy):
+def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exact_min_energy, entropy_approx=True):
     all_ground_states_found_hist_from_entropy = None
     min_energy_from_entropy = None
-    if interaction_shape == 'random': # 2 ground states, ground state entropy = ln(2)
+    if interaction_shape == 'random' and not entropy_approx: # 2 ground states, ground state entropy = ln(2)
         t_converge = [stat_vs_t['t'] for stat_vs_t in stats_vs_t if np.round(stat_vs_t['entropy'], 8) <= np.round(np.log(2), 8)]
         if len(t_converge) > 0:
             min_energy_from_entropy = min([stat_vs_t['ave_energy'] for stat_vs_t in stats_vs_t if stat_vs_t['t'] in t_converge])
             all_ground_states_found_hist_from_entropy = {}
             for energy_hist in energy_hists:
-                ground_state_found = False
                 for t in range(len(energy_hist)):
                     if np.round(energy_hist[t], 10) == np.round(min_energy_from_entropy, 10):
-                        ground_state_found = True
-                    all_ground_states_found_hist_from_entropy.setdefault(t, []).append(float(ground_state_found))
+                        all_ground_states_found_hist_from_entropy.setdefault(t, []).append(float(True))
+                    else:
+                        all_ground_states_found_hist_from_entropy.setdefault(t, []).append(float(False))
     for stat_vs_t in stats_vs_t:
         stat_vs_t['ave_prob_ground_state'] = None
         stat_vs_t['err_prob_ground_state'] = None
@@ -126,6 +127,15 @@ def get_total_iters(stats_vs_t, energy_hists, all_ground_states_found_hist, exac
                 stat_vs_t['total_iter_from_entropy'] = np.divide(t, np.abs(np.log(1.0 - P))) # absolute value to avoid sign change due to dropping P_* term
             else: 
                 stat_vs_t['total_iter_from_entropy'] = t
+        else:
+            # compute M * T using entropy as heuristic: S = E[- log P] = - log P
+            P_opt = 1.0 - 1.0 / np.exp(1)
+            P = np.exp(- stat_vs_t['entropy'])
+            if P < P_opt:
+                stat_vs_t['total_iter_from_entropy'] = np.divide(t, np.abs(np.log(1.0 - P))) # absolute value to avoid sign change due to dropping P_* term
+            else: 
+                stat_vs_t['total_iter_from_entropy'] = t
+
     return min_energy_from_entropy
 
 def simulate(structure, system_size, fill, interaction_shape, interaction_radius, algorithm, init_temp, cool_rate, exact_min_energy, exact_min_gap):
@@ -141,9 +151,9 @@ def simulate(structure, system_size, fill, interaction_shape, interaction_radius
         raise RuntimeError('Length of temperature and energy histories must match')
     ground_state_found = None
     if exact_min_energy:
-        ground_state_found = float('inf')
+        ground_state_found = [0 for t in range(len(energy_hist))]
         if abs(min_energy - exact_min_energy) <= exact_min_gap:
-            ground_state_found = np.min(np.where(np.round(energy_hist, 10) == (np.round(min_energy, 10))))
+            ground_state_found = [float(np.round(energy_hist[t], 10) == np.round(min_energy, 10)) for t in range(len(energy_hist))]
         elif min_energy - exact_min_energy < - exact_min_gap:
             print('WARNING: Cannot reach energy below ground state energy')
     return [step, temp_hist, energy_hist, partition_hist, ground_state_found, min_energy, prob]

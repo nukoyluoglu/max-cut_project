@@ -102,10 +102,10 @@ def get_lattice_coords(num_lattice_dims, lattice_dims, lattice_spacing, triangul
         lattice_coords[:, 0] *= np.sqrt(3) / 2
     return lattice_coords
 
-def plot_interaction(interaction_fn, interaction_radius, lattice_X, lattice_Y, lattice_spacing, path):
+def plot_interaction(interaction_fn, interaction_radius, system_size, lattice_spacing, path):
     plt.figure()
     interaction = interaction_fn(interaction_radius)
-    dist = np.arange(0, euclidean_dist_2D((0, 0), (lattice_X * lattice_spacing, lattice_Y * lattice_spacing)), 0.01)
+    dist = np.arange(0, euclidean_dist_2D((0, 0), (system_size[0] * lattice_spacing, system_size[1] * lattice_spacing)), 0.01)
     interaction_strength = [- interaction(r) for r in dist]
     plt.plot(dist, interaction_strength)
     plt.xlabel('Distance, d')
@@ -115,18 +115,18 @@ def plot_interaction(interaction_fn, interaction_radius, lattice_X, lattice_Y, l
     plt.savefig('{}/interaction_function.png'.format(path))
     plt.close()
 
-def plot_steps_vs_radius(system_sols, lattice_X, lattice_Y, interaction_shape, path):
+def plot_steps_vs_radius(system_sols, system_size, interaction_shape, path):
     radii = []
     steps_from_exact = []
     steps_from_entropy = []
     col_info = {}
-    for radius, system_sol in system_sols.items():
+    for radius, system_sol in sorted(system_sols.items()):
         radii.append(radius)
         steps_from_exact.append(system_sol['step_from_exact'])
         steps_from_entropy.append(system_sol['step_from_entropy'])
         col_info[radius] = 'radius = {}\nT_0 = {}\nr = {}\nP= {}'.format(radius, system_sol['init_temp'], system_sol['cool_rate'], system_sol['prob_ground_state_per_run'])
     fig = plt.figure()
-    plt.title('L = {}, {}'.format(lattice_X, interaction_shape))
+    plt.title('N = {}, {}'.format(system_size, interaction_shape))
     plt.xlabel('Radius, R')
     plt.ylabel('Steps')
     plt.plot(radii, steps_from_exact, label='from exact')
@@ -142,38 +142,42 @@ def plot_steps_vs_system_size(algo_sols, interaction_shape, path, random_sols=No
     for system_size, system_sols in algo_sols.items():
         for radius, system_sol in system_sols.items():
             sol_by_system_by_radius[radius][system_size] = system_sol
-    for radius, sol_by_system in sol_by_system_by_radius.items():
+    for radius, sol_by_system in sorted(sol_by_system_by_radius.items()):
         system_sizes = []
         steps_from_exact = []
         steps_from_entropy = []
         if random_sols:
             random_steps = []
         col_info = {}
-        w = csv.writer(open('{}/runtimes_steps_vs_system_size_radius_{}.csv'.format(path, radius), 'w'))
+        w = csv.writer(open('{}/steps_vs_system_size_radius_{}.csv'.format(path, radius), 'w'))
         w.writerow(['system size', 'step_from_exact', 'step_from_entropy', 'random_step'])
-        for system_size, sol in sol_by_system.items():
+        for system_size, sol in sorted(sol_by_system.items()):
             system_sizes.append(system_size)
             steps_from_exact.append(sol['step_from_exact'])
             steps_from_entropy.append(sol['step_from_entropy'])
             if random_sols:
                 random_steps.append(random_sols[system_size][radius])
-            col_info[system_size] = 'L = {}\nT_0 = {}\nr = {}\nP = {}'.format(system_size, sol['init_temp'], sol['cool_rate'], sol['prob_ground_state_per_run'])
+            col_info[system_size] = 'N = {}\nT_0 = {}\nr = {}\nP = {}'.format(system_size, sol['init_temp'], sol['cool_rate'], sol['prob_ground_state_per_run'])
             w.writerow([system_size, sol['step_from_exact'], sol['step_from_entropy'], random_sols[system_size]])
-        fig = plt.figure(figsize=(16, 12))
+        fig = plt.figure(figsize=(20, 12))
         plt.title('{}, radius = {}'.format(interaction_shape, radius))
-        color = 'tab:red'
         plt.xlabel('System Size, L')
-        plt.ylabel('Steps', color=color)
+        plt.ylabel('Steps')
+        color = 'tab:red'
         plt.plot(system_sizes, steps_from_exact, label='from exact')
-        plt.ylim(bottom=0)
         plt.plot(system_sizes, steps_from_entropy, label='from entropy')
+        plt.legend()
+        plt.xticks(list(col_info.keys()), list(col_info.values()))
+        plt.ylim(bottom=0)
+        fig.tight_layout()
+        plt.savefig('{}/steps_vs_system_size_radius_{}.png'.format(path, radius))
         if random_sols:
             plt.plot(system_sizes, random_steps, label='random selection')
-        plt.yscale('log')
-        plt.xticks(list(col_info.keys()), list(col_info.values()))
         plt.legend()
+        plt.yscale('log')
+        plt.ylim(bottom=None)
         fig.tight_layout()
-        plt.savefig('{}/runtimes_steps_vs_system_size_radius_{}.png'.format(path, radius))
+        plt.savefig('{}/log_steps_vs_system_size_radius_{}.png'.format(path, radius))
         plt.close()
 
 def plot_num_ground_states_vs_system_size(exact_sols, interaction_shape, path):
@@ -181,10 +185,10 @@ def plot_num_ground_states_vs_system_size(exact_sols, interaction_shape, path):
     for system_size, system_sols in exact_sols.items():
         for radius, system_sol in system_sols.items():
             sol_by_system_by_radius[radius][system_size] = system_sol
-    for radius, sol_by_system in sol_by_system_by_radius.items():
+    for radius, sol_by_system in sorted(sol_by_system_by_radius.items()):
         system_sizes = []
         nums_ground_states = []
-        for system_size, sol in sol_by_system.items():
+        for system_size, sol in sorted(sol_by_system.items()):
             system_sizes.append(system_size)
             nums_ground_states.append(sol['num_ground_states'])
         plt.figure()
@@ -207,9 +211,9 @@ def get_spin_lattice(spins, prob):
         partition_y.append(atom_y)
     return np.array(x_up), np.array(y_up), np.array(x_down), np.array(y_down)
 
-def plot_spin_lattice(prob, spin_history, energy_history, interaction_shape, interaction_radius, lattice_X, lattice_Y, path):
+def plot_spin_lattice(prob, spin_history, energy_history, interaction_shape, interaction_radius, system_size, path):
     fig = plt.figure()
-    plt.title('L = {}, {}, radius = {}'.format(lattice_X, interaction_shape, interaction_radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, interaction_radius))
     camera = Camera(fig)
     # plot 1 spin configuration per temperature
     for t in range(0, len(spin_history), 1000):
@@ -265,6 +269,7 @@ def plot_prob_ground_state_temp_vs_step(stats_vs_t, optimal_t, optimal_step, sys
     ax1.set_ylabel('Probability of Reaching Ground State - P(t)', color=color)
     ax1.errorbar(t_history, prob_ground_state_history, yerr=prob_ground_state_errors, color=color)
     ax1.tick_params(axis='y', labelcolor=color)
+    ax1.set_ylim(bottom=0, top=1)
     ax2 = ax1.twinx()
     color = 'tab:blue'
     ax2.set_ylabel('Temperature, T', color=color)
@@ -337,7 +342,7 @@ def plot_energy_entropy_vs_temp(stats_vs_temp, system_size, interaction_shape, i
     fig, ax1 = plt.subplots(figsize=(8, 6))
     if exact_min_enery:
         plt.axhline(exact_min_enery, linestyle='dashed', color='b', alpha=0.5, label='brute force')
-    title = 'L = {}, {}, radius = {}, T_0 = {}, r = {}\nT_f = {}, E_min = {}'.format(system_size, interaction_shape, interaction_radius, init_temp, cool_rate, np.format_float_scientific(1.0 / inverse_temps[-1], precision=1), min(ave_energies))
+    title = 'N = {}, {}, radius = {}, T_0 = {}, r = {}\nT_f = {}, E_min = {}'.format(system_size, interaction_shape, interaction_radius, init_temp, cool_rate, np.format_float_scientific(1.0 / inverse_temps[-1], precision=1), min(ave_energies))
     color = 'tab:red'
     ax1.set_xlabel('1 / Temperature, 1 / T')
     ax1.set_xscale('log')
@@ -396,7 +401,7 @@ def boltzmann_dist(all_states_energy, temp):
         denom += factor
     return num / denom
 
-def plot_params_energy_vs_temp(param_results, opt_init_temp, opt_cool_rate, system_size, interaction_shape, interaction_radius, path, exact_min_energy, exact_path, boltzmann_temps, boltzmann_energies):
+def plot_params_energy_vs_temp(param_results, opt_init_temp, opt_cool_rate, system_size, interaction_shape, interaction_radius, path, exact_min_energy, boltzmann_temps, boltzmann_energies):
     for init_temp, param_result_by_cool_rate in param_results.items():
         plt.figure()
         plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, interaction_radius))
@@ -455,7 +460,7 @@ def plot_params_energy_vs_temp_heatmap(param_results, opt_init_temp, opt_cool_ra
         axs[i].set_yticks([])
         axs[i].xaxis.set_visible(False)
     i = len(param_data)
-    if exact_min_energy:
+    if os.path.isdir(exact_path):
         all_energies = []
         r = csv.reader(open('{}/energies.csv'.format(exact_path), 'r'))
         next(r)
@@ -504,14 +509,21 @@ def get_beta_sum(angles):
 def get_betas(angles):
     return angles[::2]
 
+# returns sum of angles corresponding to Reference Hamiltonian
+def get_gamma_sum(angles): 
+    return np.sum(get_gammas(angles))
+
+# returns angles corresponding to Reference Hamiltonian
+def get_gammas(angles):
+    return angles[1::2]
+
 def get_beta_indices(alpha):
     return 2 * np.array(range(alpha))
 
-
-def plot_state_probs(state_probs_t, energy_t, dims, interaction_shape, radius, alpha, path):
-    states = np.array(get_states_str(dims))
+def plot_state_probs(state_probs_t, energy_t, system_size, interaction_shape, radius, alpha, path):
+    states = np.array(get_states_str(system_size))
     fig = plt.figure(figsize=(9, 12))
-    plt.title('L = {}, {}, radius = {}, alpha = {}'.format(dims[0], interaction_shape, radius, alpha))
+    plt.title('N = {}, {}, radius = {}, alpha = {}'.format(system_size, interaction_shape, radius, alpha))
     plt.xlabel('State')
     plt.ylabel('Probability')
     camera = Camera(fig)
@@ -536,37 +548,32 @@ def plot_state_probs(state_probs_t, energy_t, dims, interaction_shape, radius, a
     animation.save('{}/state_probs_alpha_{}.gif'.format(path, alpha), writer = 'imagemagick')
     plt.close()
     # sample spin lattice in ground state
-    print(np.reshape(np.array([int(spin) for spin in states[ground_states[0]]]), dims))
+    print(np.reshape(np.array([int(spin) for spin in states[ground_states[0]]]), system_size))
 
-def plot_ground_state_fidelities_vs_time(state_probs_t_alpha, ground_states_id, angles_alpha, MT_alpha, best_alpha, dims, interaction_shape, radius, path):
+def plot_ground_state_fidelities_vs_time(t, ground_state_probs_t, angles, MT, step_stop, final_prob, alpha, system_size, interaction_shape, radius, path):
     fig = plt.figure(figsize=(12, 6))
-    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     plt.xlabel('Time, t')
     plt.ylabel('Probability of Ground State, P')
-    for alpha, (state_probs_t, t) in state_probs_t_alpha.items():
-        ground_state_prob_t = [np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t]
-        angles = angles_alpha[alpha]
-        beta_sum = get_beta_sum(angles)
-        label='alpha = {}, beta_sum = {}'.format(alpha, beta_sum)
-        if alpha == best_alpha:
-            label += ', optimal'
-        p = plt.plot(t, ground_state_prob_t, label=label)
-        MTs = MT_alpha[alpha]
-        plt.axvline(MT_alpha[alpha][1], label={'T = {}, M * T = {}'.format(MT_alpha[alpha][1], MT_alpha[alpha][0])}, color=p[0].get_color(), linestyle='dashed')
+    beta_sum = get_beta_sum(angles)
+    label='alpha = {}, beta_sum = {}'.format(alpha, beta_sum)
+    p = plt.plot(t, ground_state_probs_t, label=label)
+    plt.axvline(step_stop, label='T = {}, M * T = {}, P = {}'.format(step_stop, MT, final_prob), color=p[0].get_color(), linestyle='dashed')
     plt.ylim(bottom=0, top=1)
-    plt.legend(loc='upper left', bbox_to_anchor=(1.0, 1.0))
+    # plt.legend(loc='upper left', bbox_to_anchor=(1.0, 1.0))
+    plt.legend()
     fig.tight_layout()
     plt.savefig('{}/ground_state_fidelities_vs_time.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def plot_final_ground_state_fidelities_vs_alpha(state_probs_t_alpha, ground_states_id, dims, interaction_shape, radius, path):
+def plot_final_ground_state_fidelities_vs_alpha(state_probs_t_alpha, ground_states_id, system_size, interaction_shape, radius, path):
     alphas = []
     final_ground_state_probs = []
     for alpha, (state_probs_t, t) in state_probs_t_alpha.items():
         alphas.append(alpha)
         final_ground_state_probs.append(np.sum(state_probs_t[-1][ground_states_id]))
     fig = plt.figure()
-    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     plt.xlabel('Circuit Depth, alpha')
     plt.ylabel('Probability of Ground State, P')
     plt.plot(alphas, final_ground_state_probs)
@@ -575,7 +582,7 @@ def plot_final_ground_state_fidelities_vs_alpha(state_probs_t_alpha, ground_stat
     plt.savefig('{}/final_ground_state_fidelities_vs_alpha.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_states_id, angles_alpha, dims, interaction_shape, radius, path):
+def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_states_id, angles_alpha, system_size, interaction_shape, radius, path):
     beta_sums = []
     final_ground_state_probs = []
     for alpha, (state_probs_t, t) in state_probs_t_alpha.items():
@@ -584,7 +591,7 @@ def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_s
         beta_sum = get_beta_sum(angles)
         beta_sums.append(beta_sum)
     fig = plt.figure()
-    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     plt.xlabel('Integrated Interaction Strength * Time, beta_sum')
     plt.ylabel('Probability of Ground State, P')
     plt.plot(beta_sums, final_ground_state_probs)
@@ -593,24 +600,25 @@ def plot_final_ground_state_fidelities_vs_beta_sum(state_probs_t_alpha, ground_s
     plt.savefig('{}/final_ground_state_fidelities_vs_beta_sum.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def get_MT(state_probs_t, ground_states_id, angles=[]):
-    P = np.array([np.sum(state_probs[ground_states_id]) for state_probs in state_probs_t])
+def get_MT(P, angles=[]):
     P_opt = 1.0 - 1.0 / np.exp(1)
     if len(angles) > 0:
-        MT = np.array([np.divide(get_beta_sum(angles[:t]), np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else t for t in range(len(P))])
+        # MT = np.array([np.divide(get_beta_sum(angles[:t]), np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else get_beta_sum(angles[:t]) for t in range(len(P))])
+        MT = np.array([np.divide(get_gamma_sum(angles[:t]) / np.pi, np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else get_gamma_sum(angles[:t]) / np.pi for t in range(len(P))])
+        step_stop = np.argmin(MT[2:]) + 2
     else:
         MT = np.array([np.divide(t, np.abs(np.log(1.0 - P[t]))) if P[t] < P_opt else t for t in range(len(P))])
-    step_stop = np.argmin(MT[1:]) + 1
+        step_stop = np.argmin(MT[1:]) + 1
     return MT[step_stop], step_stop
 
-def plot_MT_vs_alpha(MT_alpha, dims, interaction_shape, radius, path):
+def plot_MT_vs_alpha(MT_alpha, system_size, interaction_shape, radius, path):
     alphas = []
     MTs = []
     for alpha, (MT, step_stop) in MT_alpha.items():
         alphas.append(alpha)
         MTs.append(MT)
     fig = plt.figure()
-    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     plt.xlabel('Circuit Depth, alpha)')
     plt.ylabel('M * T (T = [1, 2 * alpha])')
     # plt.ylabel('M * T (T = Total Integrated Interaction Strength * Time, beta_sum)')
@@ -620,7 +628,7 @@ def plot_MT_vs_alpha(MT_alpha, dims, interaction_shape, radius, path):
     plt.savefig('{}/MT_vs_alpha.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, VQE_beta_sum, dims, interaction_shape, radius, path):
+def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, VQE_beta_sum, system_size, interaction_shape, radius, path):
     alphas = []
     VQE_runtimes = []
     VQE_beta_sums = []
@@ -629,7 +637,7 @@ def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, VQE_beta_sum, dims,
         VQE_runtimes.append(VQE_runtime)
         VQE_beta_sums.append(VQE_beta_sum[alpha])
     fig, ax1 = plt.subplots()
-    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     ax1.set_xlabel('Circuit Depth, alpha')
     color = 'tab:red'
     ax1.set_ylabel('VQE Optimization Runtime (s)', color=color)
@@ -642,41 +650,43 @@ def plot_VQE_runtimes_beta_sums_vs_alpha(VQE_runtimes_alpha, VQE_beta_sum, dims,
     plt.savefig('{}/VQE_runtimes_beta_sums_vs_alpha.png'.format(path), bbox_inches='tight')
     plt.close()
 
-def plot_energy_vs_time(energy_t, t, dims, interaction_shape, radius, alpha, path):
-    states = np.array(get_states_str(dims))
+def plot_energy_vs_time(energy_t, t, system_size, interaction_shape, radius, alpha, path):
+    states = np.array(get_states_str(system_size))
     fig = plt.figure()
-    plt.title('L = {}, {}, radius = {}, alpha = {}'.format(dims[0], interaction_shape, radius, alpha))
+    plt.title('N = {}, {}, radius = {}, alpha = {}'.format(system_size, interaction_shape, radius, alpha))
     plt.xlabel('Time, t')
     plt.ylabel('Expectation Value of Hamiltonian, <H>')
     plt.plot(t, energy_t)
     plt.savefig('{}/expH_in_time_alpha_{}.png'.format(path, alpha), bbox_inches='tight')
     plt.close()
 
-def plot_energy_hamiltonians_vs_time(exp_t, H_t, B_t, t, dims, interaction_shape, radius, alpha, path):
-    states = np.array(get_states_str(dims))
+def plot_energy_hamiltonians_vs_time(exp_t, H_t, B_t, t, system_size, interaction_shape, radius, alpha, path, MT=None, step_stop=None):
+    states = np.array(get_states_str(system_size))
     fig, ax1 = plt.subplots()
-    plt.title('L = {}, {}, radius = {}, alpha = {}'.format(dims[0], interaction_shape, radius, alpha))
+    plt.title('N = {}, {}, radius = {}, alpha = {}'.format(system_size, interaction_shape, radius, alpha))
     ax1.set_xlabel('Time, t')
     ax1.set_ylabel('Expectation Value of Ising Hamiltonian (<H>)')
     ax1.plot(t, exp_t)
+    if step_stop:
+        plt.axvline(step_stop, label={'T = {}, M * T = {}'.format(step_stop, MT)}, color='g', linestyle='dashed')
     ax2 = ax1.twinx()
-    ax2.set_ylabel('Ratio of Total Hamiltonian')
+    ax2.set_ylabel('Evolution Angle')
     ax2.step(t, H_t, alpha=0.5, label='Ising Hamiltonian (H)')
     ax2.step(t, B_t, alpha=0.5, label='Reference Hamiltonian (B)')
-    ax2.set_ylim(bottom=0, top=1)
-    ax2.legend()
+    ax2.set_ylim(bottom=0)
+    plt.legend()
     fig.tight_layout()
     plt.savefig('{}/<H>_H_B_in_time_alpha_{}.png'.format(path, alpha), bbox_inches='tight')
     plt.close()
 
-def plot_eigval_crossing(eig_i_t, t, dims, interaction_shape, radius, path):
+def plot_eigval_crossing(eig_i_t, t, system_size, interaction_shape, radius, path):
     eigs_t = defaultdict(list)
     for eig_i in eig_i_t:
         eig_i.sort()
         for i in range(len(eig_i)):
             eigs_t[i].append(eig_i[i])
     fig = plt.figure()
-    plt.title('L = {}, {}, radius = {}'.format(dims[0], interaction_shape, radius))
+    plt.title('N = {}, {}, radius = {}'.format(system_size, interaction_shape, radius))
     plt.xlabel('Time, t')
     plt.ylabel('Eigenvalues Total Hamiltonian, H + B')
     for i, eig_t in eigs_t.items():

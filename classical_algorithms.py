@@ -49,7 +49,7 @@ class SimulatedAnnealing(MaxCutAlgorithm):
             #     batch_change = 0
             switch_positive_deltas = [problem.get_switch_energy_change(v) for v in problem.get_vertices() if problem.get_switch_energy_change(v) > 0]
             if len(switch_positive_deltas) > 0:
-                final_temp = np.power(10, np.floor(np.log10(- min(switch_positive_deltas) / np.log(0.0001))))
+                final_temp = np.power(10, np.floor(np.log10(- min(switch_positive_deltas) / np.log(1e-8))))
                 if temp <= final_temp:
                     break
             # if num_batch_no_change >= self.no_change_treshold_cooling:

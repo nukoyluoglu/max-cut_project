@@ -133,6 +133,16 @@ class MaxCutProblem(util.Graph):
     def get_edges(self):
         return [[weight, v1, v2] for (v1, v2), weight in self.get_edge_dict().items()]
 
+    def reset(self):
+        self.partition = self.partition_history[0]
+        self.objective = 0
+        self.set_objective()
+        self.switch_change = self.calc_objective_change_per_switch()
+        self.partition_history = [copy.copy(self.partition)]
+        self.objective_history = [copy.copy(self.objective)]
+        self.best_partition = self.partition
+        self.best_objective = self.objective
+
 
 
 

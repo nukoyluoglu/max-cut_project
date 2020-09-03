@@ -14,9 +14,19 @@ import csv
 import argparse
 import multiprocessing as mp
 
-NUM_PARAM_TRIALS = 1000
+def exact_solve_prob(prob): 
+    start = time.time()
+    min_energy, num_ground_states, sample_ground_state, num_total_states, all_energies = classical_algorithms.BruteForce().solve(prob)
+    min_gap = float('inf')
+    prev_energy = 0.0
+    for energy in sorted(all_energies):
+        if energy != prev_energy:
+            min_gap = min(abs(energy - prev_energy), min_gap)
+            prev_energy = energy
+    end = time.time()
+    return {'min energy': min_energy, 'min energy gap': min_gap, 'runtime': end - start}
 
-def exact_solve(structure, system_size, fill, interaction_shape, interaction_radius, path, output): 
+def exact_solve(structure, system_size, fill, interaction_shape, interaction_radius, path): 
     radius_dir_path = '{}/radius_{}'.format(path, interaction_radius)
     util.make_dir(radius_dir_path)
     start = time.time()
@@ -39,7 +49,7 @@ def exact_solve(structure, system_size, fill, interaction_shape, interaction_rad
                 min_gap = min(abs(energy - prev_energy), min_gap)
                 prev_energy = energy
     end = time.time()
-    output.put({'radius': interaction_radius, 'min energy': min_energy, '# ground states': num_ground_states, '# states': num_total_states, 'min energy gap': min_gap, 'runtime': end - start})
+    return {'radius': interaction_radius, 'min energy': min_energy, '# ground states': num_ground_states, '# states': num_total_states, 'min energy gap': min_gap, 'runtime': end - start}
 
 if __name__ == '__main__':
     structure, system_size, fill, interaction_shape, ensemble = maxcut.configure()
@@ -55,9 +65,7 @@ if __name__ == '__main__':
     else:
         radius_range = ['NA']
 
-    output = mp.Queue()
-    processes = [mp.Process(target=exact_solve, args=(structure, system_size, fill, interaction_shape, interaction_radius, exact_dir_path, output)) for interaction_radius in radius_range]
-    exact_sols = util.parallel_process(processes, output)
+    exact_sols = [exact_solve(structure, system_size, fill, interaction_shape, interaction_radius, exact_dir_path) for interaction_radius in radius_range]
     
     with open('{}/exact_sols.csv'.format(exact_dir_path), 'w') as output_file:
         header = exact_sols[0].keys()

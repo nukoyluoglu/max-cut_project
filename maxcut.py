@@ -3,7 +3,6 @@ import os
 import experiment
 import problem
 import classical_algorithms
-import maxcut_free
 import timeit
 import util
 import collections
@@ -14,7 +13,6 @@ import argparse
 import itertools
 
 LATTICE_SPACING = 1
-NUM_PARAM_TRIALS = 50
 
 def get_interaction_fn(interaction_shape):
     if interaction_shape == 'random':
@@ -32,12 +30,14 @@ def get_cooling_schedules(problem=None):
         switch_positive_deltas = [problem.get_switch_energy_change(v) for v in problem.get_vertices() if problem.get_switch_energy_change(v) > 0]
         if len(switch_positive_deltas) > 0:
             init_temp = np.power(10, np.ceil(np.log10(max(switch_positive_deltas))))
+            print('1', init_temp)
         else:
             init_temp = 10.0
+            print('2', init_temp)
         init_temps = [init_temp]
     else:
-        init_temps = np.array([0.1, 1.0, 10.0])
-    cool_rates = np.array([0.997, 0.998, 0.999])
+        init_temps = np.array([10.0])
+    cool_rates = np.array([0.70, 0.80, 0.90, 0.999])
     return list(itertools.product(init_temps, cool_rates))
 
 def initialize_problem(structure, system_size, fill, interaction_shape, interaction_radius):
